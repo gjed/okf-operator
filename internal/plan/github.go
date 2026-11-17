@@ -41,8 +41,9 @@ func (g GitHubDiffer) Head(ctx context.Context, repo string) (string, error) {
 	return sha, nil
 }
 
-// Changes compares base...head. A 404 means base (or head) is not in the
-// repo's history and counts as diverged.
+// Changes compares base...head. A 404 with a resolvable head means base is not
+// in the repo's history and counts as diverged; a missing head or an
+// unreadable repo is an ordinary failure.
 func (g GitHubDiffer) Changes(ctx context.Context, repo, base, head string) ([]ChangedPath, error) {
 	owner, name, _ := strings.Cut(repo, "/")
 	c, err := g.Clients.ClientFor(ctx, owner)
@@ -51,6 +52,9 @@ func (g GitHubDiffer) Changes(ctx context.Context, repo, base, head string) ([]C
 	}
 	cmp, _, err := c.Repositories.CompareCommits(ctx, owner, name, base, head, nil)
 	if github.IsNotFound(err) {
+		if _, _, herr := c.Repositories.GetCommitSHA1(ctx, owner, name, head, ""); herr != nil {
+			return nil, fmt.Errorf("resolve %s@%s: %w", repo, head, herr)
+		}
 		return nil, fmt.Errorf("%s %s...%s not found: %w", repo, base, head, ErrDiverged)
 	}
 	if err != nil {
