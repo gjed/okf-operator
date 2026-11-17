@@ -46,6 +46,8 @@ func TestRunExitCodes(t *testing.T) {
 		{"bad subcommand flag", []string{"version", "-nope"}, 2, "flag provided but not defined"},
 		{"bad global flag", []string{"--nope", "version"}, 2, "flag provided but not defined"},
 		{"bad log level", []string{"--log-level", "verbose", "version"}, 2, `invalid --log-level "verbose"`},
+		{"bad log level with help", []string{"--log-level", "verbose", "help"}, 2, `invalid --log-level "verbose"`},
+		{"bad log format with unknown command", []string{"--log-format", "xml", "frobnicate"}, 2, `invalid --log-format "xml"`},
 		{"bad log format", []string{"--log-format", "xml", "version"}, 2, `invalid --log-format "xml"`},
 		{"runtime error", []string{"boom"}, 1, "boom"},
 		{"success", []string{"version"}, 0, ""},
