@@ -2,9 +2,9 @@
 
 ## 1. Routing map
 
-- [ ] 1.1 Implement the v1 schema types, strict YAML decoding and `Load(path)` in `internal/routing`, and verify tests that unknown keys and `version: 2` fail
-- [ ] 1.2 Implement validation (duplicate source, bundle containment, `..`, non-`.md` targets, invalid globs) that collects every error, and verify table tests with one case per rule plus one multi-error file
-- [ ] 1.3 Implement matching with `doublestar` (exclude first, fan-out to several pages, sorted output), and verify table tests covering `**`, exclude-over-route and fan-out
+- [x] 1.1 Implement the v1 schema types, strict YAML decoding and `Load(path)` in `internal/routing`, and verify tests that unknown keys and `version: 2` fail
+- [x] 1.2 Implement validation (duplicate source, bundle containment, `..`, non-`.md` targets, invalid globs) that collects every error, and verify table tests with one case per rule plus one multi-error file
+- [x] 1.3 Implement matching with `doublestar` (exclude first, fan-out to several pages, sorted output), and verify table tests covering `**`, exclude-over-route and fan-out
 - [ ] 1.4 Add `examples/routing.yaml` and `docs/routing.md` describing the schema, and verify a test that loads the example without errors and the markdown lint passes
 
 ## 2. GitHub access
