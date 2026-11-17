@@ -36,7 +36,7 @@
     {
       "customType": "regex",
       "description": "Track versions pinned with a `# renovate:` comment in workflow files",
-      "fileMatch": ["^\\.github/workflows/.*\\.ya?ml$"],
+      "managerFilePatterns": ["/^\\.github/workflows/.*\\.ya?ml$/"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[^\\n]*?(?:version: \"?|@)(?<currentValue>v?[0-9][^\\s\"]*)"
       ]
