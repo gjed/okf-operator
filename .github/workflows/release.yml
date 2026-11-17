@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+# GITHUB_TOKEN only checks out. The version tag and the GitHub release are
+# written with the gjed-release app token below.
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Holds the gjed-release app credentials and only accepts runs from
+    # protected branches, so a workflow on any other branch cannot mint the token.
+    environment: release
+    steps:
+      # semantic-release pushes the version tag and creates the GitHub release
+      # with this token, so the `release: published` event triggers image.yml.
+      # The release does not commit to main.
+      - name: Mint release app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write # push the version tag, create the GitHub release
+          permission-issues: write # comment on issues fixed by the release
+          permission-pull-requests: write # comment on pull requests included in the release
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # semantic-release requires full git history to determine the next version
+          fetch-depth: 0
+          # Otherwise git pushes with the persisted GITHUB_TOKEN header instead of
+          # the app token semantic-release puts in the remote URL.
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Install semantic-release dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: pnpm exec semantic-release
