@@ -135,3 +135,9 @@ func TestMatchEmpty(t *testing.T) {
 		t.Fatalf("lists must be empty, not nil: %+v", got)
 	}
 }
+
+func TestExampleLoads(t *testing.T) {
+	if _, err := Load("../../examples/routing.yaml"); err != nil {
+		t.Fatal(err)
+	}
+}
