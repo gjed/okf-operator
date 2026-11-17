@@ -5,19 +5,19 @@
 - [x] 1.1 Implement the v1 schema types, strict YAML decoding and `Load(path)` in `internal/routing`, and verify tests that unknown keys and `version: 2` fail
 - [x] 1.2 Implement validation (duplicate source, bundle containment, `..`, non-`.md` targets, invalid globs) that collects every error, and verify table tests with one case per rule plus one multi-error file
 - [x] 1.3 Implement matching with `doublestar` (exclude first, fan-out to several pages, sorted output), and verify table tests covering `**`, exclude-over-route and fan-out
-- [ ] 1.4 Add `examples/routing.yaml` and `docs/routing.md` describing the schema, and verify a test that loads the example without errors and the markdown lint passes
+- [x] 1.4 Add `examples/routing.yaml` and `docs/routing.md` describing the schema, and verify a test that loads the example without errors and the markdown lint passes
 
 ## 2. GitHub access
 
 - [x] 2.1 Implement token selection (App settings, then `GITHUB_TOKEN`, else usage error) in `internal/github`, with the shared `--app-id` / `--app-private-key-file` flag binding and `GITHUB_API_URL` base URL, and verify tests for all three branches, including exit 2 when neither is set and when only one App setting is set
 - [x] 2.2 Implement App JWT signing, installation lookup and narrowed installation tokens with an in-memory per-owner cache, and verify `httptest` tests that the request body carries only the requested repositories and permissions
 - [x] 2.3 Add a redacting `slog` handler and a test that runs App mode at debug level and asserts the key PEM and the token never appear in captured logs or span attributes
-- [ ] 2.4 Document the required App permissions in `docs/github-app.md` and verify the markdown lint passes
+- [x] 2.4 Document the required App permissions in `docs/github-app.md` and verify the markdown lint passes
 
 ## 3. Cursor
 
 - [x] 3.1 Implement `cursor.Read` against the contents API on `kb-state`, with path `cursors/<owner>/<name>`, and verify `httptest` tests for found, file 404, branch 404 (both mean not found), malformed content (error) and a 500 (error, not "not found")
-- [ ] 3.2 Document the `kb-state` layout in `docs/state.md` and verify the markdown lint passes
+- [x] 3.2 Document the `kb-state` layout in `docs/state.md` and verify the markdown lint passes
 
 ## 4. Plan
 
@@ -31,7 +31,7 @@
 
 - [x] 5.1 Register `plan` in `internal/cli/commands.go` with its flags (`--source`, `--knowledge-repo`, `--knowledge-dir`, `--routing`, `--to`, `--app-id`, `--app-private-key-file`), and verify `okf-operator plan -h` lists them and a missing `--source` exits 2
 - [x] 5.2 Add an end-to-end test that runs the built binary against an `httptest` GitHub fake (through `GITHUB_API_URL`) and a temp knowledge checkout, and verify that stdout matches the golden plan and the exit code is 0
-- [ ] 5.3 Document `plan` usage in `README.md` with a copy-pasteable `GITHUB_TOKEN` example against a public repo, and verify the command runs as written
+- [x] 5.3 Document `plan` usage in `README.md` with a copy-pasteable `GITHUB_TOKEN` example against a public repo, and verify the command runs as written
 
 ## Workflow follow-up
 

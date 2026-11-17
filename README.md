@@ -44,6 +44,57 @@ Global flags come before the command name:
 
 Exit codes: `0` success, `1` runtime failure, `2` usage error.
 
+### plan
+
+`plan` reads the source cursor from the knowledge repo, diffs from it to the source default branch HEAD, routes the changed paths through `.kb/routing.yaml` in the knowledge checkout, and prints a JSON plan to stdout. It calls no model and writes nothing.
+
+```bash
+mkdir -p kb/.kb
+cat > kb/.kb/routing.yaml <<'EOF'
+version: 1
+sources:
+  - repo: cli/cli
+    bundle: tools
+    routes:
+      - page: tools/gh/commands.md
+        paths: ["pkg/cmd/**"]
+EOF
+
+GITHUB_TOKEN=$(gh auth token) okf-operator plan \
+  --source cli/cli \
+  --knowledge-repo gjed/okf-operator \
+  --knowledge-dir ./kb \
+  --to 0536d5e5288458c696ccbeac0e68d87128300069
+```
+
+`gjed/okf-operator` has no `kb-state` branch, so there is no cursor and the plan is initial: it plans no pages and anchors the range end at `--to`.
+
+```json
+{
+  "version": 1,
+  "source": "cli/cli",
+  "bundle": "tools",
+  "from": "",
+  "to": "0536d5e5288458c696ccbeac0e68d87128300069",
+  "initial": true,
+  "changed_paths": [],
+  "pages": [],
+  "unrouted": [],
+  "excluded": []
+}
+```
+
+| Flag                                 | Description                                                     |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `--source owner/name`                | Source repo (required)                                          |
+| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)         |
+| `--knowledge-dir path`               | Checkout of the knowledge repo default branch (required)        |
+| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)        |
+| `--to sha`                           | End of the range instead of the source default branch HEAD      |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md) |
+
+`plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need `reconcile`. See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
+
 ### Telemetry
 
 Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver.
