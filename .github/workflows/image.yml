@@ -1,12 +1,12 @@
 name: Image
 
 # Fires because release.yml creates the release with the gjed-release app
-# token; releases created with GITHUB_TOKEN do not trigger workflows.
+# token; releases created with GITHUB_TOKEN do not trigger workflows. To rebuild
+# an image, re-run this workflow's run for that release from the Actions UI.
 on:
   release:
     types:
       - published
-  workflow_dispatch:
 
 permissions:
   contents: read
