@@ -16,7 +16,7 @@ linters:
 
   exclusions:
     rules:
-      # Test files can use unkeyed fields in struct literals
+      # Test files are exempt from revive (exported docs, naming rules)
       - path: "_test\\.go"
         linters:
           - revive
