@@ -54,7 +54,7 @@ internal/telemetry/      # slog + OTel setup and shutdown
 
 ### Release and image
 
-The pipelines are copied from the sibling repo and adapted: `release.yml` runs semantic-release with the gjed release App token, and `image.yml` builds `linux/amd64,linux/arm64` on `v*` tags and pushes `ghcr.io/gjed/okf-operator`. Actions are pinned by SHA, as in the sibling repo.
+The pipelines are copied from the sibling repo and adapted: `release.yml` runs semantic-release with the gjed release App token, and `image.yml` builds `linux/amd64,linux/arm64` when a release is published and pushes `ghcr.io/gjed/okf-operator`. Actions are pinned by SHA, as in the sibling repo.
 
 ## Risks / Trade-offs
 
