@@ -44,7 +44,8 @@ The file is validated when it is loaded, and every problem is reported in one er
 - a key is unknown
 - a repo is not `owner/name`, or appears twice
 - a bundle is empty, absolute or contains `..`
-- a target page is absolute, contains a `..` segment, does not end in `.md`, or is outside its source's bundle
+- a target page is absolute, contains a `..` segment, is not a clean path (`./`, `//`), does not end in `.md`, or is outside its source's bundle
+- two routes of one source give the same page different `type` values
 - a route has no paths
 - a glob in `paths` or `exclude` is invalid
 

@@ -29,6 +29,19 @@ func TestParseValid(t *testing.T) {
 	}
 }
 
+func TestParseSameTypeTwice(t *testing.T) {
+	_, err := Parse([]byte(valid + `      - page: product/services/api.md
+        type: Service
+        paths: ["a/**"]
+      - page: product/services/api.md
+        type: Service
+        paths: ["b/**"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestParseFails(t *testing.T) {
 	tests := []struct {
 		name string
@@ -54,6 +67,17 @@ func TestParseFails(t *testing.T) {
 		{"invalid exclude", strings.Replace(valid, `"**/secrets/**"`, `"{a"`, 1), []string{`invalid exclude glob "{a"`}},
 		{"bad repo", strings.Replace(valid, "acme/api", "acme", 1), []string{`repo "acme" is not owner/name`}},
 		{"bad bundle", strings.Replace(valid, "bundle: product", "bundle: ../product", 1), []string{"is not a relative directory"}},
+		{"dot segment", strings.Replace(valid, "product/services/api.md", "product/./services/api.md", 1), []string{"not a clean path"}},
+		{"double slash", strings.Replace(valid, "product/services/api.md", "product//services/api.md", 1), []string{"not a clean path"}},
+		{"conflicting types", valid + `      - page: product/services/api.md
+        type: Service
+        paths: ["a/**"]
+      - page: product/services/api.md
+        type: Library
+        paths: ["b/**"]
+      - page: product/services/api.md
+        paths: ["c/**"]
+`, []string{`page "product/services/api.md" has conflicting types "Service" and "Library"`}},
 		{"no paths", strings.Replace(valid, `paths: ["api/**"]`, "paths: []", 1), []string{"no paths"}},
 	}
 	for _, tt := range tests {

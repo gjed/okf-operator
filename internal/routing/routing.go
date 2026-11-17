@@ -109,10 +109,18 @@ func (m *Map) Validate() error {
 				errs = append(errs, fmt.Errorf("%s: invalid exclude glob %q", where, g))
 			}
 		}
+		types := map[string]string{}
 		for j, r := range s.Routes {
 			rwhere := fmt.Sprintf("%s routes[%d]", where, j)
 			if err := checkTarget(s.Bundle, r.Page, bundleOK); err != nil {
 				errs = append(errs, fmt.Errorf("%s: source %s target %q: %w", rwhere, s.Repo, r.Page, err))
+			}
+			if r.Type != "" {
+				if prev, ok := types[r.Page]; ok && prev != r.Type {
+					errs = append(errs, fmt.Errorf("%s: page %q has conflicting types %q and %q", rwhere, r.Page, prev, r.Type))
+				} else if !ok {
+					types[r.Page] = r.Type
+				}
 			}
 			if len(r.Paths) == 0 {
 				errs = append(errs, fmt.Errorf("%s: no paths", rwhere))
@@ -149,9 +157,11 @@ func checkTarget(bundle, page string, bundleOK bool) error {
 		return errors.New("absolute path")
 	case hasDotDot(page):
 		return errors.New(`".." segment`)
+	case path.Clean(page) != page:
+		return errors.New("not a clean path")
 	case path.Ext(page) != ".md":
 		return errors.New("not a .md page")
-	case bundleOK && !strings.HasPrefix(path.Clean(page), bundle+"/"):
+	case bundleOK && !strings.HasPrefix(page, bundle+"/"):
 		return fmt.Errorf("outside bundle %q", bundle)
 	}
 	return nil
