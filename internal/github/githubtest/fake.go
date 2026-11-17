@@ -35,6 +35,22 @@ type Fake struct {
 	tokenRequests []TokenRequest
 	auths         []string
 	files         map[string]map[string]string // "owner/name@ref" -> path -> content
+	repos         map[string][2]string         // "owner/name" -> default branch, head SHA
+	compares      map[string][]byte            // "owner/name base...head" -> body
+}
+
+// SetRepo declares a repo with its default branch and the SHA at its head.
+func (f *Fake) SetRepo(repo, defaultBranch, head string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repos[repo] = [2]string{defaultBranch, head}
+}
+
+// SetCompare stores the response body of GET /repos/{repo}/compare/{base}...{head}.
+func (f *Fake) SetCompare(repo, base, head string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.compares[repo+" "+base+"..."+head] = body
 }
 
 // SetFile stores a file on a branch of a repo. A branch exists once it has a file.
@@ -56,11 +72,16 @@ func New(t testing.TB) *Fake {
 		InstallationToken: "ghs_fakeInstallationToken0123456789",
 		FailStatus:        map[string]int{},
 		files:             map[string]map[string]string{},
+		repos:             map[string][2]string{},
+		compares:          map[string][]byte{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
 	mux.HandleFunc("POST /app/installations/{id}/access_tokens", f.accessToken)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/contents/{path...}", f.contents)
+	mux.HandleFunc("GET /repos/{owner}/{repo}", f.repo)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{ref}", f.commit)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/compare/{basehead}", f.compare)
 	f.Server = httptest.NewServer(f.record(mux))
 	t.Cleanup(f.Close)
 	return f
@@ -143,6 +164,47 @@ func (f *Fake) contents(w http.ResponseWriter, r *http.Request) {
 			"content":  base64.StdEncoding.EncodeToString([]byte(content)),
 		})
 	}
+}
+
+func (f *Fake) lookupRepo(r *http.Request) ([2]string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	repo, ok := f.repos[r.PathValue("owner")+"/"+r.PathValue("repo")]
+	return repo, ok
+}
+
+func (f *Fake) repo(w http.ResponseWriter, r *http.Request) {
+	repo, ok := f.lookupRepo(r)
+	if !ok {
+		NotFound(w)
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"full_name":      r.PathValue("owner") + "/" + r.PathValue("repo"),
+		"default_branch": repo[0],
+	})
+}
+
+// commit answers the SHA media type that GetCommitSHA1 requests.
+func (f *Fake) commit(w http.ResponseWriter, r *http.Request) {
+	repo, ok := f.lookupRepo(r)
+	if !ok || r.PathValue("ref") != repo[0] || !strings.Contains(r.Header.Get("Accept"), "sha") {
+		NotFound(w)
+		return
+	}
+	_, _ = io.WriteString(w, repo[1])
+}
+
+func (f *Fake) compare(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	body, ok := f.compares[r.PathValue("owner")+"/"+r.PathValue("repo")+" "+r.PathValue("basehead")]
+	f.mu.Unlock()
+	if !ok {
+		NotFound(w)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(body)
 }
 
 // WriteJSON writes v as a JSON response.

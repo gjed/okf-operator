@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "source": "acme/platform",
+  "bundle": "infra",
+  "from": "1111111111111111111111111111111111111111",
+  "to": "2222222222222222222222222222222222222222",
+  "initial": false,
+  "changed_paths": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "previous_path": ""
+    },
+    {
+      "path": "deploy/secrets/<token>&.yaml",
+      "status": "added",
+      "previous_path": ""
+    },
+    {
+      "path": "deploy/values.yaml",
+      "status": "modified",
+      "previous_path": ""
+    }
+  ],
+  "pages": [
+    {
+      "path": "infra/pipelines/deploy.md",
+      "state": "update",
+      "type": "",
+      "source_paths": [
+        "deploy/values.yaml"
+      ]
+    }
+  ],
+  "unrouted": [
+    "README.md"
+  ],
+  "excluded": [
+    "deploy/secrets/<token>&.yaml"
+  ]
+}

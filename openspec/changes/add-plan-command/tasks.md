@@ -21,11 +21,11 @@
 
 ## 4. Plan
 
-- [ ] 4.1 Define the plan JSON types (version 1) and deterministic encoding, and verify a golden-file test that a fixture plan encodes byte-identically on repeated runs
-- [ ] 4.2 Implement the compare-based `SourceDiffer` (ahead/identical/behind/diverged, 404 counted as diverged, renames with previous path, fail closed at 300 files), and verify tests against recorded compare responses in `test/fixtures/compare/`
-- [ ] 4.3 Implement `plan.Build`: source not onboarded, missing cursor (initial), cursor at HEAD, routed, unrouted and excluded paths, page state from the checkout, `--to` override. Verify one test per scenario in the `change-plan` and `source-cursor` specs, using fakes for the differ, cursor and checkout
-- [ ] 4.4 Log each unrouted path once at info level, and verify a test that captures the logs and asserts one line per unrouted path with the source repo
-- [ ] 4.5 Set the plan attributes on the dispatcher's `plan` root span (no second span) and add the four counters, and verify a test with the in-memory span and metric exporters that asserts names and attributes
+- [x] 4.1 Define the plan JSON types (version 1) and deterministic encoding, and verify a golden-file test that a fixture plan encodes byte-identically on repeated runs
+- [x] 4.2 Implement the compare-based `SourceDiffer` (ahead/identical/behind/diverged, 404 counted as diverged, renames with previous path, fail closed at 300 files), and verify tests against recorded compare responses in `test/fixtures/compare/`
+- [x] 4.3 Implement `plan.Build`: source not onboarded, missing cursor (initial), cursor at HEAD, routed, unrouted and excluded paths, page state from the checkout, `--to` override. Verify one test per scenario in the `change-plan` and `source-cursor` specs, using fakes for the differ, cursor and checkout
+- [x] 4.4 Log each unrouted path once at info level, and verify a test that captures the logs and asserts one line per unrouted path with the source repo
+- [x] 4.5 Set the plan attributes on the dispatcher's `plan` root span (no second span) and add the four counters, and verify a test with the in-memory span and metric exporters that asserts names and attributes
 
 ## 5. CLI wiring
 

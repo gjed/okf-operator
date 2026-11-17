@@ -1,0 +1,68 @@
+{
+  "url": "https://api.github.com/repos/gjed/okf-operator/compare/24f366f^...24f366f",
+  "status": "ahead",
+  "ahead_by": 1,
+  "behind_by": 0,
+  "total_commits": 1,
+  "base_commit": {
+    "sha": "d38d0a4d6925735a7a26dc4a9d4cd9626eb91039"
+  },
+  "merge_base_commit": {
+    "sha": "d38d0a4d6925735a7a26dc4a9d4cd9626eb91039"
+  },
+  "files": [
+    {
+      "sha": "bbe8b3936527ad38e9220450a60063edbac5eb4c",
+      "filename": "openspec/changes/archive/2026-11-17-bootstrap-repository/.openspec.yaml",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "previous_filename": "openspec/changes/bootstrap-repository/.openspec.yaml"
+    },
+    {
+      "sha": "346e5642f5fe3434436c0e6fc290a6ab66704b6a",
+      "filename": "openspec/changes/archive/2026-11-17-bootstrap-repository/design.md",
+      "status": "renamed",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "previous_filename": "openspec/changes/bootstrap-repository/design.md"
+    },
+    {
+      "sha": "8577e1dd8e51deabe15f95128aa83c987784f44e",
+      "filename": "openspec/changes/archive/2026-11-17-bootstrap-repository/proposal.md",
+      "status": "renamed",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "previous_filename": "openspec/changes/bootstrap-repository/proposal.md"
+    },
+    {
+      "sha": "0c0f6aa3462f4644b9564c71e83b935e1ac3596d",
+      "filename": "openspec/changes/archive/2026-11-17-bootstrap-repository/specs/cli/spec.md",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "previous_filename": "openspec/changes/bootstrap-repository/specs/cli/spec.md"
+    },
+    {
+      "sha": "ce68c12e5dbd03d7b00b88d1d38d56688396a774",
+      "filename": "openspec/changes/archive/2026-11-17-bootstrap-repository/tasks.md",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "previous_filename": "openspec/changes/bootstrap-repository/tasks.md"
+    },
+    {
+      "sha": "da5a2a4531724c1532138fe653e4a1d97fc25718",
+      "filename": "openspec/specs/cli/spec.md",
+      "status": "added",
+      "additions": 91,
+      "deletions": 0,
+      "changes": 91
+    }
+  ]
+}

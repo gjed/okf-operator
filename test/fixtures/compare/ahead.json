@@ -1,0 +1,55 @@
+{
+  "url": "https://api.github.com/repos/gjed/okf-operator/compare/9a4ee51...f4e931d",
+  "status": "ahead",
+  "ahead_by": 6,
+  "behind_by": 0,
+  "total_commits": 6,
+  "base_commit": {
+    "sha": "9a4ee5112983eec42553536efc6893f7ac050d2a"
+  },
+  "merge_base_commit": {
+    "sha": "9a4ee5112983eec42553536efc6893f7ac050d2a"
+  },
+  "files": [
+    {
+      "sha": "e60ab9bd06f1d201f32a56e5b4b9ad35fdfaa9b8",
+      "filename": ".github/workflows/ci.yml",
+      "status": "modified",
+      "additions": 27,
+      "deletions": 0,
+      "changes": 27
+    },
+    {
+      "sha": "f99dad0130c95aa912dd019203719de631c5ffa8",
+      "filename": ".github/workflows/image.yml",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2,
+      "changes": 4
+    },
+    {
+      "sha": "da2b1d9e3f5203f0f63b5eb4695ea8caff97af61",
+      "filename": ".github/workflows/release.yml",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "changes": 5
+    },
+    {
+      "sha": "2a53582ce4193f8971c5425ad4bb22295a17be2b",
+      "filename": ".golangci.yml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2
+    },
+    {
+      "sha": "3ed750dbbd8905f691ed274aa161bbb9a91fbcf3",
+      "filename": ".renovaterc.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2
+    }
+  ]
+}
