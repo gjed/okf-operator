@@ -18,6 +18,10 @@ const Branch = "kb-state"
 
 var shaRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+// ValidSHA reports whether s is a full 40-character lowercase hex commit SHA,
+// the only form a cursor holds.
+func ValidSHA(s string) bool { return shaRE.MatchString(s) }
+
 // Path is the cursor file for source repo owner/name.
 func Path(source string) string { return "cursors/" + source }
 
@@ -59,7 +63,7 @@ func (r Reader) Read(ctx context.Context, source string) (sha string, found bool
 		return "", false, fmt.Errorf("read %s: %w", where, err)
 	}
 	sha = strings.TrimSuffix(content, "\n")
-	if !shaRE.MatchString(sha) {
+	if !ValidSHA(sha) {
 		return "", false, fmt.Errorf("%s is malformed: want one 40-character hex SHA and a newline", where)
 	}
 	return sha, true, nil

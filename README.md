@@ -84,14 +84,14 @@ GITHUB_TOKEN=$(gh auth token) okf-operator plan \
 }
 ```
 
-| Flag                                 | Description                                                     |
-| ------------------------------------ | --------------------------------------------------------------- |
-| `--source owner/name`                | Source repo (required)                                          |
-| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)         |
-| `--knowledge-dir path`               | Checkout of the knowledge repo default branch (required)        |
-| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)        |
-| `--to sha`                           | End of the range instead of the source default branch HEAD      |
-| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md) |
+| Flag                                 | Description                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `--source owner/name`                | Source repo (required)                                                             |
+| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)                            |
+| `--knowledge-dir path`               | Checkout of the knowledge repo default branch (required)                           |
+| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)                           |
+| `--to sha`                           | End of the range (full 40-character SHA) instead of the source default branch HEAD |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                    |
 
 `plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need `reconcile`. See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
 

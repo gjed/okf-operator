@@ -32,7 +32,7 @@ func runPlan(ctx context.Context, env Env, args []string) error {
 	kbRepo := fs.String("knowledge-repo", "", "knowledge repo `owner/name` holding the kb-state branch (required)")
 	kbDir := fs.String("knowledge-dir", "", "`path` to a checkout of the knowledge repo default branch (required)")
 	routingFile := fs.String("routing", "", "routing map `file` (default <knowledge-dir>/"+routing.DefaultPath+")")
-	to := fs.String("to", "", "plan up to this commit `sha` instead of the source default branch HEAD")
+	to := fs.String("to", "", "plan up to this full 40-character commit `sha` instead of the source default branch HEAD")
 	var app github.AppFlags
 	app.Register(fs)
 	if err := parseFlags(fs, args, env.Stdout, env.Stderr); err != nil {
@@ -44,7 +44,7 @@ func runPlan(ctx context.Context, env Env, args []string) error {
 		fs.Usage()
 		return UsageError{}
 	}
-	if err := checkPlanFlags(fs, *source, *kbRepo, *kbDir); err != nil {
+	if err := checkPlanFlags(fs, *source, *kbRepo, *kbDir, *to); err != nil {
 		return usage(err)
 	}
 	cfg, err := github.Load(app, os.Getenv)
@@ -79,7 +79,7 @@ func runPlan(ctx context.Context, env Env, args []string) error {
 	return plan.Encode(env.Stdout, p)
 }
 
-func checkPlanFlags(fs *flag.FlagSet, source, kbRepo, kbDir string) error {
+func checkPlanFlags(fs *flag.FlagSet, source, kbRepo, kbDir, to string) error {
 	var errs []error
 	if fs.NArg() > 0 {
 		errs = append(errs, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " ")))
@@ -93,6 +93,10 @@ func checkPlanFlags(fs *flag.FlagSet, source, kbRepo, kbDir string) error {
 		if owner, name, ok := strings.Cut(f.value, "/"); f.value != "" && (!ok || owner == "" || name == "" || strings.Contains(name, "/")) {
 			errs = append(errs, fmt.Errorf("--%s %q is not owner/name", f.name, f.value))
 		}
+	}
+	// --to becomes the next cursor, so it must be the same full SHA a cursor holds.
+	if to != "" && !cursor.ValidSHA(to) {
+		errs = append(errs, fmt.Errorf("--to %q is not a full 40-character lowercase hex commit SHA", to))
 	}
 	return errors.Join(errs...)
 }
