@@ -27,13 +27,14 @@ gh api 'repos/acme/kb/contents/cursors/acme/api?ref=kb-state' --jq .content | ba
 
 ## How plan treats the cursor
 
-| Cursor                                      | Result                                                           |
-| ------------------------------------------- | ---------------------------------------------------------------- |
-| File or `kb-state` branch missing (404)     | Initial plan: `initial: true`, no pages, `to` is the source HEAD |
-| Equal to the end commit                     | Empty plan: `from` equals `to`, no changed paths                 |
-| Ancestor of the end commit                  | Normal plan of the range                                         |
-| Not an ancestor (force-push, rewrite, gone) | Exit 1: cursor diverged, `reconcile` required                    |
-| Malformed content                           | Exit 1: the error names the file                                 |
-| Any other API error                         | Exit 1, so an outage never looks like a first run                |
+| Cursor                                      | Result                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| File or `kb-state` branch missing (404)     | Initial plan: `initial: true`, no pages, `to` is the source HEAD                  |
+| Knowledge repo missing or not readable      | Exit 1, so a wrong `--knowledge-repo` or lost access never looks like a first run |
+| Equal to the end commit                     | Empty plan: `from` equals `to`, no changed paths                                  |
+| Ancestor of the end commit                  | Normal plan of the range                                                          |
+| Not an ancestor (force-push, rewrite, gone) | Exit 1: cursor diverged, `reconcile` required                                     |
+| Malformed content                           | Exit 1: the error names the file                                                  |
+| Any other API error                         | Exit 1, so an outage never looks like a first run                                 |
 
 A source with no cursor is never backfilled by `plan`. The first run only anchors the range end, and backfill is `reconcile`'s job.

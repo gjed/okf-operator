@@ -28,8 +28,9 @@ type Reader struct {
 }
 
 // Read returns the cursor SHA for source. A 404 on the file or on the branch
-// means no cursor (found is false); any other failure is an error, so an outage
-// never looks like a first run.
+// of a readable knowledge repo means no cursor (found is false); any other
+// failure, including a knowledge repo the token cannot see, is an error, so an
+// outage never looks like a first run.
 func (r Reader) Read(ctx context.Context, source string) (sha string, found bool, err error) {
 	owner, name, _ := strings.Cut(r.KnowledgeRepo, "/")
 	client, err := r.Clients.ClientFor(ctx, owner)
@@ -40,6 +41,11 @@ func (r Reader) Read(ctx context.Context, source string) (sha string, found bool
 	where := fmt.Sprintf("cursor %s on %s@%s", file, r.KnowledgeRepo, Branch)
 	fc, _, _, err := client.Repositories.GetContents(ctx, owner, name, file, &gogithub.RepositoryContentGetOptions{Ref: Branch})
 	if github.IsNotFound(err) {
+		// A 404 also covers a missing or unreadable knowledge repo; only a
+		// missing file or branch on a readable repo means no cursor.
+		if _, _, rerr := client.Repositories.Get(ctx, owner, name); rerr != nil {
+			return "", false, fmt.Errorf("read %s: %w", where, rerr)
+		}
 		return "", false, nil
 	}
 	if err != nil {

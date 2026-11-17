@@ -34,6 +34,7 @@ func TestRead(t *testing.T) {
 		{"found", func(f *githubtest.Fake) { f.SetFile("acme/kb", Branch, "cursors/acme/api", sha+"\n") }, sha, true, ""},
 		{"file 404", func(f *githubtest.Fake) { f.SetFile("acme/kb", Branch, "cursors/acme/other", sha+"\n") }, "", false, ""},
 		{"branch 404", func(*githubtest.Fake) {}, "", false, ""},
+		{"repo 404", func(*githubtest.Fake) {}, "", false, "read cursor cursors/acme/api on acme/kb@kb-state"},
 		{"wrong branch only", func(f *githubtest.Fake) { f.SetFile("acme/kb", "main", "cursors/acme/api", sha+"\n") }, "", false, ""},
 		{"malformed", func(f *githubtest.Fake) { f.SetFile("acme/kb", Branch, "cursors/acme/api", "abc123\n") }, "", false,
 			"cursor cursors/acme/api on acme/kb@kb-state is malformed"},
@@ -47,6 +48,9 @@ func TestRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := githubtest.New(t)
+			if tt.name != "repo 404" {
+				fake.SetRepo("acme/kb", "main", sha)
+			}
 			tt.setup(fake)
 			got, found, err := reader(t, fake).Read(context.Background(), "acme/api")
 			if tt.wantErr != "" {
