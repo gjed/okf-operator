@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# One release at a time: overlapping runs would compute the same next version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
