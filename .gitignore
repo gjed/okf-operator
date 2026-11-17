@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+bin/
+
+# Go test artifacts
+coverage.out
+test-results.xml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# pnpm-lock.yaml is intentionally committed for reproducible installs
+# (do NOT add pnpm-lock.yaml here)
+
+# Built binaries
+/okf-operator
+
+# Git worktrees
+.worktrees/

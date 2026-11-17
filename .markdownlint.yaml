@@ -1,0 +1,2 @@
+# Long lines are fine in prose and tables; keep the rest of the defaults.
+MD013: false
