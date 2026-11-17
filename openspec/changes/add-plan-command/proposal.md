@@ -32,5 +32,5 @@ None. `cli` from `bootstrap-repository` is reused unchanged: `plan` registers as
 ## Impact
 
 - Depends on `bootstrap-repository` being applied first.
-- New dependencies: `github.com/google/go-github` (REST client), `github.com/bmatcuk/doublestar/v4` (`**` globs), `sigs.k8s.io/yaml` or `gopkg.in/yaml.v3` (routing map), and `github.com/golang-jwt/jwt/v5` (App JWT, same as the sibling repo).
+- New dependencies: `github.com/google/go-github` (REST client), `github.com/bmatcuk/doublestar/v4` (`**` globs), `go.yaml.in/yaml/v3` (routing map), and `github.com/golang-jwt/jwt/v5` (App JWT, same as the sibling repo).
 - Knowledge repos gain a documented `.kb/routing.yaml` schema and a `kb-state` branch layout. Both are public contracts from here on and are versioned.

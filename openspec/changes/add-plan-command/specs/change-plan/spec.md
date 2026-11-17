@@ -76,7 +76,7 @@ When the source compare cannot return the complete list of changed files for the
 
 ### Requirement: Plan telemetry
 
-Each `plan` run SHALL emit one span carrying the source repo, the range, and the counts of changed, routed, unrouted and excluded paths. It SHALL also record those counts as metrics labelled by source repo and bundle.
+Each `plan` run SHALL emit one span carrying the source repo, the range, and the counts of changed paths, routed pages, unrouted paths and excluded paths. It SHALL also record those counts as metrics labelled by source repo and bundle.
 
 #### Scenario: Span attributes
 
