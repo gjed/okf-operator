@@ -26,11 +26,27 @@ Builds on `bootstrap-repository` (dispatcher, exit codes, logging, telemetry). `
 internal/routing/    # schema, Load(), Validate(), Match(changedPaths) -> routes
 internal/cursor/     # Read(ctx, kbRepo, source) -> (sha, found, err); path format
 internal/plan/       # Build(ctx, deps) -> Plan; JSON types (version 1)
-internal/github/     # client construction: token or App installation tokens
-cmd/okf-operator/    # plan subcommand: flags -> plan.Build -> JSON on stdout
+internal/github/     # client construction: token or App installation tokens, redacting slog handler
+internal/cli/plan.go # plan Command, registered in commands.go: flags -> plan.Build -> JSON on stdout
 ```
 
 `plan.Build` takes interfaces (`SourceDiffer`, `CursorReader`, `PageChecker`), so tests run against recorded fixtures with no network.
+
+### CLI wiring and exit codes
+
+`plan` is a `cli.Command` in `internal/cli/commands.go`. `cmd/okf-operator` and the dispatcher do not change, and the global flags stay `--log-format` and `--log-level`.
+
+- Flags are parsed with `parseFlags`. A missing required flag, a missing credential or an incomplete App setting prints the error and the `plan` flags to stderr and returns `cli.UsageError`, so the process exits 2.
+- Routing, cursor and compare failures are plain errors and exit 1.
+- The App flags (`--app-id`, `--app-private-key-file`) are `plan` flags, registered by a helper in `internal/github` so later commands bind the same flags and env fallbacks.
+
+### GitHub API base URL
+
+The REST base URL is `GITHUB_API_URL` when set, otherwise `https://api.github.com/`. GitHub Actions sets this variable already. It is also the seam the end-to-end test uses to point the built binary at an `httptest` fake.
+
+### YAML decoding
+
+The routing map is decoded with `go.yaml.in/yaml/v3`, the maintained fork of `gopkg.in/yaml.v3` that is already in `go.sum` through the OTel exporters. `Decoder.KnownFields(true)` gives strict decoding.
 
 ### Changed paths from the GitHub compare API, not a git clone
 
@@ -83,6 +99,10 @@ Without `--to`, `plan` resolves the source default branch HEAD with one `GET /re
 
 The App JWT is signed with `golang-jwt/jwt/v5` (RS256, 9-minute expiry). The installation for each repo owner is found with `GET /repos/{owner}/{repo}/installation`. The token is minted with `POST /app/installations/{id}/access_tokens`, with `repositories` and `permissions` narrowed to what the command needs. Tokens are cached in memory per owner for the run only.
 
+- Setting only one of the App ID and the private key file is a usage error that names the missing one.
+
+- `internal/github` provides a `slog.Handler` wrapper that replaces every registered secret (the key PEM, the App JWT, each installation token and `GITHUB_TOKEN`) with `[REDACTED]` in messages and attribute values. `plan` wraps `env.Logger` with it before the first GitHub call, and each token is registered as it is minted. No secret is ever set as a span attribute or wrapped into an error.
+
 - Alternative: `bradleyfalzon/ghinstallation`. It is a fine library but cannot narrow permissions per token without extra plumbing. The hand-rolled path is about 80 lines, and the sibling repo already does the same.
 
 ### Plan JSON
@@ -106,7 +126,7 @@ Lists are sorted. The struct field order is fixed, and `encoding/json` with `Set
 
 ### Telemetry
 
-There is one `plan` span. The counters are `okf.plan.changed_paths`, `okf.plan.routed_pages`, `okf.plan.unrouted_paths` and `okf.plan.excluded_paths`, with the attributes `okf.source.repo` and `okf.bundle`. Names stay in the `okf.` namespace so they don't collide with semconv.
+The dispatcher already opens one root span per subcommand, named after it, so `plan` gets its `plan` span for free. `plan.Build` does not open a second one: it sets its attributes on `trace.SpanFromContext(ctx)`. The span attributes are `okf.source.repo`, `okf.bundle`, `okf.plan.from`, `okf.plan.to` and the four counts below. The counters are `okf.plan.changed_paths`, `okf.plan.routed_pages`, `okf.plan.unrouted_paths` and `okf.plan.excluded_paths`, with the attributes `okf.source.repo` and `okf.bundle`. Names stay in the `okf.` namespace so they don't collide with semconv.
 
 ## Risks / Trade-offs
 
