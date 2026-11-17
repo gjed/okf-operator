@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": ["Renovate is the sole dependency manager for this repo. Dependabot is NOT used."],
+  "extends": ["github>gjed/renovate-config:default"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "groupName": "Go dependencies"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["pnpm-lock.yaml"],
+      "groupName": "semantic-release plugins",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": ["Hold conventional-changelog-conventionalcommits below v10: v10 replaced Handlebars templates with render functions and requires conventional-changelog-writer 9, but @semantic-release/release-notes-generator 14.x and @semantic-release/commit-analyzer 13.x still depend on conventional-changelog-writer ^8 (release fails with 'requires conventional-changelog-writer@9 or newer'). Remove once release-notes-generator supports writer 9. See https://github.com/gjed/github-activity-exporter/issues/65"],
+      "matchPackageNames": ["conventional-changelog-conventionalcommits"],
+      "allowedVersions": "<10.0.0"
+    },
+    {
+      "description": ["Never automerge major updates of the release toolchain: CI does not exercise semantic-release on PRs, so a breaking major only fails in release.yml after merge."],
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track versions pinned with a `# renovate:` comment in workflow files",
+      "fileMatch": ["^\\.github/workflows/.*\\.ya?ml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[^\\n]*?(?:version: \"?|@)(?<currentValue>v?[0-9][^\\s\"]*)"
+      ]
+    }
+  ]
+}
