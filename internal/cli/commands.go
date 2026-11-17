@@ -4,4 +4,5 @@ package cli
 // Command here; the dispatcher itself does not change.
 var commands = []Command{
 	versionCommand,
+	planCommand,
 }

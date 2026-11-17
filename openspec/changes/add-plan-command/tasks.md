@@ -29,8 +29,8 @@
 
 ## 5. CLI wiring
 
-- [ ] 5.1 Register `plan` in `internal/cli/commands.go` with its flags (`--source`, `--knowledge-repo`, `--knowledge-dir`, `--routing`, `--to`, `--app-id`, `--app-private-key-file`), and verify `okf-operator plan -h` lists them and a missing `--source` exits 2
-- [ ] 5.2 Add an end-to-end test that runs the built binary against an `httptest` GitHub fake (through `GITHUB_API_URL`) and a temp knowledge checkout, and verify that stdout matches the golden plan and the exit code is 0
+- [x] 5.1 Register `plan` in `internal/cli/commands.go` with its flags (`--source`, `--knowledge-repo`, `--knowledge-dir`, `--routing`, `--to`, `--app-id`, `--app-private-key-file`), and verify `okf-operator plan -h` lists them and a missing `--source` exits 2
+- [x] 5.2 Add an end-to-end test that runs the built binary against an `httptest` GitHub fake (through `GITHUB_API_URL`) and a temp knowledge checkout, and verify that stdout matches the golden plan and the exit code is 0
 - [ ] 5.3 Document `plan` usage in `README.md` with a copy-pasteable `GITHUB_TOKEN` example against a public repo, and verify the command runs as written
 
 ## Workflow follow-up
