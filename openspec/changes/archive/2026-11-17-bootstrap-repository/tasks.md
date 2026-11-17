@@ -16,7 +16,7 @@
 
 ## 3. Delivery pipelines
 
-- [ ] 3.1 Add `ci.yml` (changes filter, lint, test, build) with SHA-pinned actions, and verify it passes on the bootstrap PR
+- [x] 3.1 Add `ci.yml` (changes filter, lint, test, build) with SHA-pinned actions, and verify it passes on the bootstrap PR
 - [x] 3.2 Add a multi-stage distroless `Dockerfile` and `image.yml`, and verify `docker build --build-arg VERSION=0.0.0-test .` succeeds and the image's `version` prints `0.0.0-test`
 - [x] 3.3 Add `release.yml`, `.releaserc.js`, `package.json` and `pnpm-lock.yaml`, and verify `pnpm exec semantic-release --dry-run --no-ci` resolves the config locally
 
