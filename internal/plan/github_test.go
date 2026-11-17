@@ -127,6 +127,23 @@ func TestDifferDiverged(t *testing.T) {
 	}
 }
 
+// A compare 404 is divergence only when head resolves: a mistyped --to or an
+// unreadable source repo is an ordinary failure.
+func TestDifferNotFoundIsNotDivergence(t *testing.T) {
+	d, _ := differ(t)
+	for name, r := range map[string][3]string{
+		"missing head":    {repo, aheadBase, "dddddddddddddddddddddddddddddddddddddddd"},
+		"unreadable repo": {"gjed/private", aheadBase, aheadHead},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := d.Changes(context.Background(), r[0], r[1], r[2])
+			if err == nil || errors.Is(err, ErrDiverged) || !strings.Contains(err.Error(), "resolve "+r[0]+"@"+r[2]) {
+				t.Fatalf("err = %v, want a resolve failure that is not ErrDiverged", err)
+			}
+		})
+	}
+}
+
 func TestDifferServerError(t *testing.T) {
 	d, fake := differ(t)
 	fake.FailStatus["/repos/"+repo+"/compare/"+aheadBase+"..."+aheadHead] = 502

@@ -185,10 +185,12 @@ func (f *Fake) repo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// commit answers the SHA media type that GetCommitSHA1 requests.
+// commit answers the SHA media type that GetCommitSHA1 requests, for the
+// default branch or the head SHA.
 func (f *Fake) commit(w http.ResponseWriter, r *http.Request) {
 	repo, ok := f.lookupRepo(r)
-	if !ok || r.PathValue("ref") != repo[0] || !strings.Contains(r.Header.Get("Accept"), "sha") {
+	ref := r.PathValue("ref")
+	if !ok || (ref != repo[0] && ref != repo[1]) || !strings.Contains(r.Header.Get("Accept"), "sha") {
 		NotFound(w)
 		return
 	}
