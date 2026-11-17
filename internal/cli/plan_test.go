@@ -81,6 +81,8 @@ func TestPlanUsageErrors(t *testing.T) {
 		{"missing source", []string{"plan", "--knowledge-repo", "acme/kb", "--knowledge-dir", dir}, map[string]string{"GITHUB_TOKEN": "t"},
 			[]string{"missing required flag --source", "-knowledge-dir"}},
 		{"bad source", planArgs(dir, "--source", "acme"), map[string]string{"GITHUB_TOKEN": "t"}, []string{`--source "acme" is not owner/name`}},
+		{"branch as --to", planArgs(dir, "--to", "main"), map[string]string{"GITHUB_TOKEN": "t"}, []string{`--to "main" is not a full 40-character`}},
+		{"short --to", planArgs(dir, "--to", "2222222"), map[string]string{"GITHUB_TOKEN": "t"}, []string{`--to "2222222"`}},
 		{"no credentials", planArgs(dir), nil, []string{"--app-id and --app-private-key-file", "GITHUB_TOKEN"}},
 		{"only app id", planArgs(dir, "--app-id", "1"), nil, []string{"private key file is not"}},
 	}
