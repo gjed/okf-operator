@@ -5,10 +5,12 @@ go 1.26.0
 toolchain go1.27.4
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.4
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (
