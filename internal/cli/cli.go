@@ -78,6 +78,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, build Bui
 		return UsageError{err}
 	}
 
+	logger, err := telemetry.NewLogger(stderr, *logFormat, *logLevel)
+	if err != nil {
+		return UsageError{err}
+	}
+
 	rest := global.Args()
 	if len(rest) == 0 {
 		return UsageError{errors.New("missing command")}
@@ -92,10 +97,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, build Bui
 		return UsageError{fmt.Errorf("unknown command %q", name)}
 	}
 
-	logger, err := telemetry.NewLogger(stderr, *logFormat, *logLevel)
-	if err != nil {
-		return UsageError{err}
-	}
 	shutdown, err := telemetry.Setup(ctx)
 	if err != nil {
 		return err
