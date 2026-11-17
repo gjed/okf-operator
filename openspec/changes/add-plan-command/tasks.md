@@ -9,9 +9,9 @@
 
 ## 2. GitHub access
 
-- [ ] 2.1 Implement token selection (App settings, then `GITHUB_TOKEN`, else usage error) in `internal/github`, with the shared `--app-id` / `--app-private-key-file` flag binding and `GITHUB_API_URL` base URL, and verify tests for all three branches, including exit 2 when neither is set and when only one App setting is set
-- [ ] 2.2 Implement App JWT signing, installation lookup and narrowed installation tokens with an in-memory per-owner cache, and verify `httptest` tests that the request body carries only the requested repositories and permissions
-- [ ] 2.3 Add a redacting `slog` handler and a test that runs App mode at debug level and asserts the key PEM and the token never appear in captured logs or span attributes
+- [x] 2.1 Implement token selection (App settings, then `GITHUB_TOKEN`, else usage error) in `internal/github`, with the shared `--app-id` / `--app-private-key-file` flag binding and `GITHUB_API_URL` base URL, and verify tests for all three branches, including exit 2 when neither is set and when only one App setting is set
+- [x] 2.2 Implement App JWT signing, installation lookup and narrowed installation tokens with an in-memory per-owner cache, and verify `httptest` tests that the request body carries only the requested repositories and permissions
+- [x] 2.3 Add a redacting `slog` handler and a test that runs App mode at debug level and asserts the key PEM and the token never appear in captured logs or span attributes
 - [ ] 2.4 Document the required App permissions in `docs/github-app.md` and verify the markdown lint passes
 
 ## 3. Cursor
