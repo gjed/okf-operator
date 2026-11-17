@@ -16,7 +16,7 @@
 
 ## 3. Cursor
 
-- [ ] 3.1 Implement `cursor.Read` against the contents API on `kb-state`, with path `cursors/<owner>/<name>`, and verify `httptest` tests for found, file 404, branch 404 (both mean not found), malformed content (error) and a 500 (error, not "not found")
+- [x] 3.1 Implement `cursor.Read` against the contents API on `kb-state`, with path `cursors/<owner>/<name>`, and verify `httptest` tests for found, file 404, branch 404 (both mean not found), malformed content (error) and a 500 (error, not "not found")
 - [ ] 3.2 Document the `kb-state` layout in `docs/state.md` and verify the markdown lint passes
 
 ## 4. Plan
