@@ -1,0 +1,47 @@
+schema: spec-driven
+
+context: |
+  Purpose: keep an Open Knowledge Format (OKF) bundle repository in sync with
+  merged pull requests in source repositories. A merged PR wakes the system;
+  the tool diffs the source repo from a stored cursor to HEAD, routes changed
+  paths to concept pages, asks an LLM for updated pages, stamps provenance,
+  validates, and opens a PR in the knowledge repo. Deterministic gates plus an
+  advisory LLM review decide auto-merge versus human review.
+
+  Public FOSS project (Apache 2.0, github.com/gjed/okf-operator). It must stay
+  generic: no organisation, repo, path or concept-type names in code or
+  prompts. Everything deployment-specific comes from config read at run time
+  from the knowledge repo (routing.yaml, policy.yaml, profile).
+
+  Architecture:
+  - Go, single static binary `okf-operator`. Pipeline stages are library
+    packages, each exposed as a CLI subcommand (plan, write, propose, gate,
+    reconcile) that runs standalone with no cluster.
+  - A `controller` mode runs the same pipeline as a Kubernetes operator
+    (controller-runtime, CRDs). Level-triggered: GitHub webhooks only enqueue
+    a reconcile; a periodic requeue covers lost events. No Argo, no event bus.
+  - Runs are serialised per knowledge repository.
+  - Cursors (last processed source SHA) live on a `kb-state` branch of the
+    knowledge repo, never in cluster state.
+  - The model returns text only. It never touches git or the GitHub API.
+    The tool enforces the routed file set; source content is untrusted data.
+  - Writes happen only via PRs from a GitHub App using short-lived
+    installation tokens. Model client is provider-neutral (configurable
+    endpoint).
+  - Every stage emits OpenTelemetry traces and metrics.
+
+  OKF: Markdown + YAML frontmatter, spec is a draft (v0.2). Reuse
+  github.com/skosovsky/okf packages for parsing/validation; pin versions.
+  Generated pages carry provenance: source_repo, source_sha, source_paths,
+  updated_at, generated_by.
+
+  Conventions: Conventional Commits, semantic-release, Renovate (extends
+  github>gjed/renovate-config:default), golangci-lint v2, worktrees under
+  .worktrees/<change-name>. Follow github.com/gjed/github-activity-exporter
+  for layout and tooling conventions.
+
+rules:
+  proposal:
+    - State which plan phase or release step the change belongs to.
+  tasks:
+    - Each task must be verifiable by a command or a test.
