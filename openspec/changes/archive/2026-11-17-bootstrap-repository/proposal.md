@@ -15,7 +15,7 @@ This belongs to Phase 2 of the plan (the writer tool). It comes before build-ord
 - Repository hygiene: Apache 2.0 `LICENSE`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `.gitignore`, `.golangci.yml`, `Makefile`, `.pre-commit-config.yaml`, `.markdownlint.yaml`, Renovate config.
 - CI (`ci.yml`): lint, test and build on PRs and on `main`, with the docs-only skip used in `github-activity-exporter`.
 - Release (`release.yml`, `.releaserc.js`, `package.json`): semantic-release on `main`.
-- Image (`image.yml`, `Dockerfile`): multi-arch distroless image on GHCR, built on release tags.
+- Image (`image.yml`, `Dockerfile`): multi-arch distroless image on GHCR, built when a release is published.
 
 ## Capabilities
 
