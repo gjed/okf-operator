@@ -34,9 +34,9 @@
 
 ## 6. CLI wiring
 
-- [ ] 6.1 Add `internal/cli/gate.go` with `--knowledge-repo`, `--pr`, `--plan` and the App flags, two inline `github.Access` providers, and register it in `internal/cli/commands.go`. Verify `okf-operator gate -h` lists the flags, a missing `--pr` exits 2, a failing gate exits 0 with `pass: false`, and an App-mode test asserts the two token requests carry only the specified repositories and permissions
-- [ ] 6.2 Add an end-to-end test that runs the built binary against `githubtest` with a plan on stdin, and verify stdout matches the golden report and the exit code is 0
-- [ ] 6.3 Document `gate` in `README.md`, and verify the markdown lint passes
+- [x] 6.1 Add `internal/cli/gate.go` with `--knowledge-repo`, `--pr`, `--plan` and the App flags, two inline `github.Access` providers, and register it in `internal/cli/commands.go`. Verify `okf-operator gate -h` lists the flags, a missing `--pr` exits 2, a failing gate exits 0 with `pass: false`, and an App-mode test asserts the two token requests carry only the specified repositories and permissions
+- [x] 6.2 Add an end-to-end test that runs the built binary against `githubtest` with a plan on stdin, and verify stdout matches the golden report and the exit code is 0
+- [x] 6.3 Document `gate` in `README.md`, and verify the markdown lint passes
 
 ## Workflow follow-up
 
