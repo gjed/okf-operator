@@ -22,7 +22,7 @@ One request per page with state `update`. The prompts are embedded in the binary
 1. The template for the page's `type` from `.kb/templates/<type>.md`, if it exists.
 1. Up to two style-reference pages from the same bundle.
 1. The current page.
-1. The source data, in a block the prompt marks as untrusted: the titles and bodies of the merged PRs behind the range's commits (bodies capped at 4 KiB), and the compare patches of the page's `source_paths` only.
+1. The source data, in a block the prompt marks as untrusted: the titles and bodies of the merged PRs behind the range's commits (bodies capped at 4 KiB, at most 16 KiB of PR text per prompt, newest PRs first, with a note of how many older ones were left out), and the compare patches of the page's `source_paths` only.
 
 The model replies `NO_CHANGE` or the complete updated page.
 

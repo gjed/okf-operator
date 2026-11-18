@@ -18,6 +18,9 @@
 <<<END-CURRENT-PAGE>>>
 
 <<<UNTRUSTED-SOURCE-DATA>>>
+{{- if .PROmitted}}
+[{{.PROmitted}} older pull requests left out]
+{{end}}
 {{- range .PullRequests}}
 Pull request #{{.Number}}: {{.Title}}
 

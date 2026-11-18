@@ -50,12 +50,17 @@ For each page, `write` SHALL send the model the compare patches of that page's `
 
 ### Requirement: Source PR context is untrusted
 
-`write` SHALL include the titles and bodies of the PRs that introduced the commits in `from..to` in the prompt, inside a delimited block that the prompt declares untrusted data. Occurrences of the delimiter inside PR text or hunks SHALL be neutralised so the block cannot be closed early.
+`write` SHALL include the titles and bodies of the PRs that introduced the commits in `from..to` in the prompt, inside a delimited block that the prompt declares untrusted data. Occurrences of the delimiter inside PR text or hunks SHALL be neutralised so the block cannot be closed early. PR titles and bodies in one prompt SHALL total at most 16 KiB; the newest PRs are kept and the prompt states how many older ones were left out.
 
 #### Scenario: Delimiter in a PR body
 
 - **WHEN** a PR body contains the closing delimiter of the untrusted block
 - **THEN** the prompt sent to the model contains exactly one closing delimiter for that block
+
+#### Scenario: Many PRs in the range
+
+- **WHEN** the range's PR text exceeds 16 KiB
+- **THEN** the prompt holds the newest PRs that fit and a note with the number left out
 
 ### Requirement: Model response contract
 
