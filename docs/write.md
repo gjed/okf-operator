@@ -16,7 +16,7 @@ The API key is read from the environment only, so it never shows in a process li
 
 ## What the model sees
 
-One request per page with state `update`. The prompts are embedded in the binary from [`prompts/`](../prompts/), so a given version always sends the same instructions. Each request holds, in order:
+One request per page with state `update`. The prompts are embedded in the binary from [`prompts/`](../prompts/), so a given version always sends the same instructions. Each request holds these blocks, in order, each between `<<<NAME>>>` and `<<<END-NAME>>>` marker lines:
 
 1. The writing guidance from `.kb/profile.md`, if it exists.
 1. The template for the page's `type` from `.kb/templates/<type>.md`, if it exists.
@@ -37,7 +37,7 @@ Style references are picked automatically. The candidates are the `.md` files in
 
 ## Validation
 
-Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping, a non-empty string `type`, a non-empty body and a name that is not `index.md` or `log.md`. An invalid reply, or one cut off at the token limit, gets one retry with the error. A second failure drops the page.
+Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping, a non-empty string `type`, a non-empty body and a name that is not `index.md` or `log.md`. It must keep the current page's `type` and must not contain a block marker line from the prompt. An invalid reply, or one cut off at the token limit, gets one retry with the error. A second failure drops the page.
 
 ## Provenance
 
