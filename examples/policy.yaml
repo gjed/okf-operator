@@ -1,0 +1,11 @@
+# Auto-merge policy, version 1. Copy to .kb/policy.yaml in the knowledge repo.
+# Schema: docs/policy.md
+version: 1
+auto_merge:
+  # Concept types and bundles whose pages may auto-merge. Empty lists, or an
+  # omitted auto_merge block, allow nothing.
+  types: [Service]
+  bundles: [product]
+limits:
+  page_lines: 200 # max added + removed lines per changed page
+  pr_lines: 600 # max added + removed lines across the PR
