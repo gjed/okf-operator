@@ -2,9 +2,9 @@
 
 ## 1. Policy
 
-- [ ] 1.1 Implement the v1 schema, `Version`, `DefaultPath`, `Parse`, `Load` and strict decoding in `internal/policy`, and verify tests that an unknown key and `version: 2` fail and that a policy without `auto_merge` loads with empty lists
-- [ ] 1.2 Implement `Validate` (empty or duplicate type, invalid or duplicate bundle, missing or non-positive limits) collecting every error, and verify table tests with one case per rule plus one multi-error policy
-- [ ] 1.3 Add `examples/policy.yaml` and `docs/policy.md`, and verify a test that parses the example without errors and the markdown lint passes
+- [x] 1.1 Implement the v1 schema, `Version`, `DefaultPath`, `Parse`, `Load` and strict decoding in `internal/policy`, and verify tests that an unknown key and `version: 2` fail and that a policy without `auto_merge` loads with empty lists
+- [x] 1.2 Implement `Validate` (empty or duplicate type, invalid or duplicate bundle, missing or non-positive limits) collecting every error, and verify table tests with one case per rule plus one multi-error policy
+- [x] 1.3 Add `examples/policy.yaml` and `docs/policy.md`, and verify a test that parses the example without errors and the markdown lint passes
 
 ## 2. Test fake
 
