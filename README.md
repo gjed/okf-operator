@@ -119,6 +119,54 @@ okf-operator plan --source cli/cli --knowledge-repo acme/kb --knowledge-dir ./kb
 
 The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1 before any model call. See [Writing pages](docs/write.md) for the profile, templates, provenance and the report.
 
+### gate
+
+`gate` decides whether a knowledge PR may auto-merge. It reads the PR, its changed files and their contents through the GitHub API, loads `.kb/policy.yaml` and `.kb/routing.yaml` from the PR's base branch (never from the head), and checks the PR against the plan of the run that produced it. It prints a JSON report to stdout and writes nothing.
+
+```bash
+GITHUB_TOKEN=$(gh auth token) okf-operator gate \
+  --knowledge-repo acme/kb \
+  --pr 12 \
+  --plan plan.json
+```
+
+```json
+{
+  "version": 1,
+  "pr": 12,
+  "head_sha": "4444444444444444444444444444444444444444",
+  "pass": false,
+  "rules": [
+    {"name": "provenance", "pass": true, "details": []},
+    {"name": "routed_set", "pass": true, "details": []},
+    {"name": "allowlist", "pass": true, "details": []},
+    {"name": "change_shape", "pass": true, "details": []},
+    {"name": "size", "pass": false, "details": ["product/services/api.md: 60 changed lines exceed limits.page_lines 50"]},
+    {"name": "links", "pass": true, "details": []}
+  ]
+}
+```
+
+| Rule           | Passes when                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| `provenance`   | Every changed page has all five provenance fields and its `source_sha` exists in the plan's source repo |
+| `routed_set`   | Every changed file is one of the plan's pages                                                           |
+| `allowlist`    | The page `type` and the plan's bundle are on the policy's auto-merge allowlist                          |
+| `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`       |
+| `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)         |
+| `links`        | Every relative link in a changed page resolves to an existing file inside the bundle at the PR head     |
+
+`pass` is `true` only when every rule passes. A failed gate still exits 0, so callers branch on `pass`. Exit 1 means the evaluation could not finish (an API failure, a missing or invalid policy, a plan that does not match the base routing map) and prints no report.
+
+| Flag                                 | Description                                                         |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| `--knowledge-repo owner/name`        | Knowledge repo the PR belongs to (required)                         |
+| `--pr number`                        | Pull request number (required)                                      |
+| `--plan file`                        | Plan JSON of the run that produced the PR, `-` for stdin (required) |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)     |
+
+See [Auto-merge policy](docs/policy.md).
+
 ### Telemetry
 
 Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver.

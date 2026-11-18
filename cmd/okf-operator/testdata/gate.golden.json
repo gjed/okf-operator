@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "pr": 12,
+  "head_sha": "4444444444444444444444444444444444444444",
+  "pass": false,
+  "rules": [
+    {
+      "name": "provenance",
+      "pass": false,
+      "details": [
+        "not evaluated: needs internal/provenance"
+      ]
+    },
+    {
+      "name": "routed_set",
+      "pass": false,
+      "details": [
+        "product/services/notes.md: not one of the plan's pages"
+      ]
+    },
+    {
+      "name": "allowlist",
+      "pass": false,
+      "details": [
+        "not evaluated: needs internal/provenance"
+      ]
+    },
+    {
+      "name": "change_shape",
+      "pass": false,
+      "details": [
+        "product/services/notes.md: status added, only modified files are allowed"
+      ]
+    },
+    {
+      "name": "size",
+      "pass": false,
+      "details": [
+        "product/services/api.md: 60 changed lines exceed limits.page_lines 50"
+      ]
+    },
+    {
+      "name": "links",
+      "pass": false,
+      "details": [
+        "product/services/api.md: link \"billing.md\" resolves to product/services/billing.md, which is not a file at the head"
+      ]
+    }
+  ]
+}

@@ -39,6 +39,9 @@ export GITHUB_TOKEN=$(gh auth token)
 | `write` | Contents              | Read-only | source repo                 |
 | `write` | Metadata              | Read-only | source repo                 |
 | `write` | Pull requests         | Read-only | source repo                 |
+| `gate`  | Contents              | Read-only | source repo, knowledge repo |
+| `gate`  | Metadata              | Read-only | source repo, knowledge repo |
+| `gate`  | Pull requests         | Read-only | knowledge repo              |
 
 Grant nothing else. Later commands document what they add.
 
@@ -49,6 +52,8 @@ For each repository owner a command touches, `okf-operator`:
 1. signs an App JWT (RS256, 9-minute expiry) with the private key
 1. looks up the installation with `GET /repos/{owner}/{repo}/installation`
 1. mints an installation token with `POST /app/installations/{id}/access_tokens`, limited to that owner's repos the command uses and to the permissions in the table
+
+`gate` mints the knowledge repo token and the source repo token separately, so the pull requests permission never reaches the source repo, even when both repos share an owner.
 
 Tokens live in memory for one run and are never written to disk. Even when the installation covers the whole organisation, each token only reaches the repos of that run.
 
