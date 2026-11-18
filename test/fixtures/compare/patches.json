@@ -66,6 +66,14 @@
       "changes": 0
     },
     {
+      "sha": "9999999999999999999999999999999999999999",
+      "filename": "docs/diagram.png",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0
+    },
+    {
       "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "filename": "docs/new.md",
       "status": "renamed",

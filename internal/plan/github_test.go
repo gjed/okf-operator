@@ -205,7 +205,7 @@ func rangeDiffer(t *testing.T) (GitHubDiffer, *githubtest.Fake) {
 
 func TestDifferRangePatches(t *testing.T) {
 	d, _ := rangeDiffer(t)
-	paths := []string{"docs/full.md", "docs/omitted.md", "docs/emptied.md", "docs/empty.md",
+	paths := []string{"docs/full.md", "docs/omitted.md", "docs/emptied.md", "docs/empty.md", "docs/diagram.png",
 		"docs/new.md", "docs/old.md", "docs/renamed-only.md", "docs/renamed-before.md", "docs/not-changed.md"}
 	got, err := d.Range(context.Background(), repo, patchBase, patchHead, paths)
 	if err != nil {
@@ -229,7 +229,7 @@ func TestDifferRangePatches(t *testing.T) {
 		}
 	}
 	// Omitted patch, changed file with empty patch, and unrequested paths are absent.
-	for _, p := range []string{"docs/omitted.md", "docs/emptied.md", "docs/not-changed.md"} {
+	for _, p := range []string{"docs/omitted.md", "docs/emptied.md", "docs/diagram.png", "docs/not-changed.md"} {
 		if _, ok := got.Patches[p]; ok {
 			t.Errorf("%s present, want absent", p)
 		}
