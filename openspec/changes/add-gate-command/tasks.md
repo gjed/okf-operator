@@ -12,14 +12,14 @@
 
 ## 3. Gate core
 
-- [ ] 3.1 Define the report types (version 1), `Finalize` and the deterministic encoder in `internal/gate`, and verify a golden-file test that a fixture report encodes byte-identically on repeated runs and a test that appending a passing entry to a failing report keeps `pass` false
-- [ ] 3.2 Implement the GitHub `PRReader`: PR head and base, base ref resolved once, paginated files with the fail-closed count check, contents at a SHA. Verify tests against `githubtest`, including a count mismatch exiting with an error
-- [ ] 3.3 Implement plan decoding (version 1, unknown fields rejected) and the base-branch config load (policy and routing at the base commit, plan source and bundle checked against routing), and verify tests for a bad plan version, an unknown plan field, a missing policy and a bundle mismatch
-- [ ] 3.4 Implement the `routed_set` rule, and verify a table test with a passing and a failing case against `githubtest`
-- [ ] 3.5 Implement the `change_shape` rule, and verify a table test with a passing case and failing cases for added, removed, renamed and `.kb/` files
-- [ ] 3.6 Implement the `size` rule, and verify a table test with a passing case, a page over `page_lines` and a PR over `pr_lines`
-- [ ] 3.7 Implement link extraction and the `links` rule, and verify a table test with a passing case, a broken link, a link escaping the bundle, and ignored external, fragment-only and code-span links
-- [ ] 3.8 Add a test where the PR head modifies `.kb/policy.yaml` to allow itself, and verify the gate reads the base policy, `change_shape` fails and `pass` is false
+- [x] 3.1 Define the report types (version 1), `Finalize` and the deterministic encoder in `internal/gate`, and verify a golden-file test that a fixture report encodes byte-identically on repeated runs and a test that appending a passing entry to a failing report keeps `pass` false
+- [x] 3.2 Implement the GitHub `PRReader`: PR head and base, base ref resolved once, paginated files with the fail-closed count check, contents at a SHA. Verify tests against `githubtest`, including a count mismatch exiting with an error
+- [x] 3.3 Implement the base-branch config load (policy and routing at the base commit, plan source and bundle checked against routing), reading the plan with the CLI's existing `readPlan` (`write.DecodePlan`: version 1, unknown fields rejected), and verify tests for a bad plan version, a missing policy and a bundle mismatch
+- [x] 3.4 Implement the `routed_set` rule, and verify a table test with a passing and a failing case against `githubtest`
+- [x] 3.5 Implement the `change_shape` rule, and verify a table test with a passing case and failing cases for added, removed, renamed and `.kb/` files
+- [x] 3.6 Implement the `size` rule, and verify a table test with a passing case, a page over `page_lines` and a PR over `pr_lines`
+- [x] 3.7 Implement link extraction and the `links` rule, and verify a table test with a passing case, a broken link, a link escaping the bundle, and ignored external, fragment-only and code-span links
+- [x] 3.8 Add a test where the PR head modifies `.kb/policy.yaml` to allow itself, and verify the gate reads the base policy, `change_shape` fails and `pass` is false
 
 ## 4. Rules depending on B1
 
