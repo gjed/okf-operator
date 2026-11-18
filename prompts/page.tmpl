@@ -1,0 +1,42 @@
+{{- if .Profile}}# Writing guidance
+
+{{.Profile}}
+
+{{end -}}
+{{- if .Template}}# Page template for type {{.Type}}
+
+{{.Template}}
+
+{{end -}}
+{{- range .References}}# Reference page {{.Path}}
+
+{{.Content}}
+
+{{end -}}
+# Current page {{.Path}}
+
+{{.Page}}
+
+# Source changes
+
+<<<UNTRUSTED-SOURCE-DATA>>>
+{{- range .PullRequests}}
+## Pull request #{{.Number}}: {{.Title}}
+
+{{.Body}}{{if .BodyTruncated}}
+[body truncated]{{end}}
+{{end}}
+{{- range .Hunks}}
+## Diff of {{.Path}}
+
+{{.Patch}}
+{{end}}
+<<<END-UNTRUSTED-SOURCE-DATA>>>
+{{- if .ValidationError}}
+
+# Previous reply rejected
+
+Your previous reply for this page was not a valid page: {{.ValidationError}}
+
+Reply again with `NO_CHANGE` or the complete corrected page.
+{{- end}}

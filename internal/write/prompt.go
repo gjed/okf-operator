@@ -1,0 +1,64 @@
+package write
+
+import (
+	"fmt"
+	"strings"
+	"text/template"
+
+	"github.com/gjed/okf-operator/internal/plan"
+	"github.com/gjed/okf-operator/prompts"
+)
+
+var (
+	systemPrompt = prompts.System
+	pageTemplate = template.Must(template.New("page").Option("missingkey=error").Parse(prompts.Page))
+)
+
+// promptData fills prompts/page.tmpl.
+type promptData struct {
+	Profile         string
+	Type            string
+	Template        string
+	References      []reference
+	Path            string
+	Page            string
+	PullRequests    []plan.PullRequest
+	Hunks           []hunk
+	ValidationError string
+}
+
+type reference struct {
+	Path, Content string
+}
+
+type hunk struct {
+	Path, Patch string
+}
+
+// render fills the page template. Source data is neutralised first, so it can
+// never contain the markers that close the untrusted block.
+func render(d promptData) (string, error) {
+	prs := make([]plan.PullRequest, len(d.PullRequests))
+	for i, pr := range d.PullRequests {
+		pr.Title, pr.Body = neutralise(pr.Title), neutralise(pr.Body)
+		prs[i] = pr
+	}
+	hunks := make([]hunk, len(d.Hunks))
+	for i, h := range d.Hunks {
+		hunks[i] = hunk{Path: neutralise(h.Path), Patch: neutralise(h.Patch)}
+	}
+	d.PullRequests, d.Hunks = prs, hunks
+	d.ValidationError = neutralise(d.ValidationError)
+
+	var b strings.Builder
+	if err := pageTemplate.Execute(&b, d); err != nil {
+		return "", fmt.Errorf("render prompt for %s: %w", d.Path, err)
+	}
+	return b.String(), nil
+}
+
+// neutralise breaks every "<<<" so untrusted text cannot open or close the
+// untrusted block.
+func neutralise(s string) string {
+	return strings.ReplaceAll(s, "<<<", "< < <")
+}
