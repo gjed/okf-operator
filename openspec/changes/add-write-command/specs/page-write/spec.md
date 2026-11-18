@@ -59,7 +59,7 @@ For each page, `write` SHALL send the model the compare patches of that page's `
 
 ### Requirement: Model response contract
 
-The model SHALL reply with either the literal `NO_CHANGE` or the complete updated page (frontmatter and body). A reply wrapped in one Markdown code fence SHALL be unwrapped. A reply that is neither, or that ends because of the token limit, SHALL count as an invalid page.
+The model SHALL reply with either the literal `NO_CHANGE` or the complete updated page (frontmatter and body). A reply wrapped in one Markdown code fence SHALL be unwrapped. A reply that is neither, that ends because of the token limit, that contains a prompt block marker line, or whose frontmatter `type` differs from the current page's, SHALL count as an invalid page.
 
 #### Scenario: Explicit no change
 
@@ -70,6 +70,16 @@ The model SHALL reply with either the literal `NO_CHANGE` or the complete update
 
 - **WHEN** the model replies with a valid updated page
 - **THEN** the file is rewritten with the model's content plus stamped provenance, and the page is reported as `changed`
+
+#### Scenario: Reply echoes the prompt
+
+- **WHEN** the model returns the page followed by a reference page block copied from the prompt
+- **THEN** the reply counts as an invalid page
+
+#### Scenario: Reply changes the page type
+
+- **WHEN** the current page has `type: Compute` and the reply has `type: Storage`
+- **THEN** the reply counts as an invalid page
 
 #### Scenario: Same content returned
 

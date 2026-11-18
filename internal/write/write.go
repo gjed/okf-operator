@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -40,6 +41,10 @@ const (
 
 // NoChange is the reply that tells write the page is still accurate.
 const NoChange = "NO_CHANGE"
+
+// promptMarker matches the block marker lines of prompts/page.tmpl. A reply
+// that contains one echoed the prompt instead of returning the page.
+var promptMarker = regexp.MustCompile(`(?m)^<<<(END-)?(WRITING-GUIDANCE|PAGE-TEMPLATE|REFERENCE-PAGE|CURRENT-PAGE|UNTRUSTED-SOURCE-DATA)\b[^\n]*`)
 
 // Report is the JSON document `write` prints. Field order is the output order.
 type Report struct {
@@ -364,9 +369,15 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 	if !strings.HasPrefix(text, "---\n") {
 		return nil, false, fmt.Errorf("the reply must be %s or a complete page starting with a --- frontmatter line", NoChange)
 	}
+	if m := promptMarker.FindString(text); m != "" {
+		return nil, false, fmt.Errorf("the reply contains the prompt marker %s: reply with the current page only", m)
+	}
 	page := []byte(text + "\n")
 	if err := v.Validate(j.page.Path, page); err != nil {
 		return nil, false, err
+	}
+	if got, want := pageType(page), pageType(j.current); got != want {
+		return nil, false, fmt.Errorf("the page type is %q but must stay %q", got, want)
 	}
 	out, err := provenance.Stamp(page, f)
 	if err != nil {

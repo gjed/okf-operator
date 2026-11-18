@@ -1,42 +1,38 @@
-{{- if .Profile}}# Writing guidance
-
+{{- if .Profile}}<<<WRITING-GUIDANCE>>>
 {{.Profile}}
+<<<END-WRITING-GUIDANCE>>>
 
 {{end -}}
-{{- if .Template}}# Page template for type {{.Type}}
-
+{{- if .Template}}<<<PAGE-TEMPLATE type="{{.Type}}">>>
 {{.Template}}
+<<<END-PAGE-TEMPLATE>>>
 
 {{end -}}
-{{- range .References}}# Reference page {{.Path}}
-
+{{- range .References}}<<<REFERENCE-PAGE path="{{.Path}}">>>
 {{.Content}}
+<<<END-REFERENCE-PAGE>>>
 
 {{end -}}
-# Current page {{.Path}}
-
+<<<CURRENT-PAGE path="{{.Path}}">>>
 {{.Page}}
-
-# Source changes
+<<<END-CURRENT-PAGE>>>
 
 <<<UNTRUSTED-SOURCE-DATA>>>
 {{- range .PullRequests}}
-## Pull request #{{.Number}}: {{.Title}}
+Pull request #{{.Number}}: {{.Title}}
 
 {{.Body}}{{if .BodyTruncated}}
 [body truncated]{{end}}
 {{end}}
 {{- range .Hunks}}
-## Diff of {{.Path}}
+Diff of {{.Path}}:
 
 {{.Patch}}
 {{end}}
 <<<END-UNTRUSTED-SOURCE-DATA>>>
 {{- if .ValidationError}}
 
-# Previous reply rejected
-
-Your previous reply for this page was not a valid page: {{.ValidationError}}
-
-Reply again with `NO_CHANGE` or the complete corrected page.
+Your previous reply for this page was rejected: {{.ValidationError}}
 {{- end}}
+
+Reply now with NO_CHANGE or the complete updated content of the page at {{.Path}}, and nothing else.

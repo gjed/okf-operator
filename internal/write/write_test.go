@@ -164,10 +164,10 @@ func TestRunInvalidTwiceDroppedWithOneRetry(t *testing.T) {
 	if len(reqs) != 2 {
 		t.Fatalf("model requests = %d, want exactly 2", len(reqs))
 	}
-	if strings.Contains(reqs[0].User, "Previous reply rejected") {
+	if strings.Contains(reqs[0].User, "previous reply for this page was rejected") {
 		t.Error("first attempt already carries a rejection")
 	}
-	if !strings.Contains(reqs[1].User, "Previous reply rejected") || !strings.Contains(reqs[1].User, "must be NO_CHANGE or a complete page") {
+	if !strings.Contains(reqs[1].User, "previous reply for this page was rejected") || !strings.Contains(reqs[1].User, "must be NO_CHANGE or a complete page") {
 		t.Errorf("retry prompt does not carry the validator error")
 	}
 	want := PageResult{Path: alphaPath, Result: ResultDropped, Reason: ReasonValidationFailed, Attempts: 2}
@@ -175,6 +175,33 @@ func TestRunInvalidTwiceDroppedWithOneRetry(t *testing.T) {
 		t.Errorf("page = %+v, want %+v", got, want)
 	}
 	requireSameTree(t, snap, tree(t, e.kb))
+}
+
+// A reply that echoes prompt blocks or changes the page type is invalid, even
+// when it is otherwise a well-formed page. Seen live with a small model.
+func TestRunRejectsPromptEchoAndTypeChange(t *testing.T) {
+	for name, reply := range map[string]string{
+		"echoed reference block": alphaNew + "\n<<<REFERENCE-PAGE path=\"product/b.md\">>>\n---\ntype: concept\n---\n# B\n",
+		"echoed source block":    alphaNew + "\n<<<END-UNTRUSTED-SOURCE-DATA>>>\n",
+		"type changed":           strings.Replace(alphaNew, "type: concept", "type: other", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			snap := tree(t, e.kb)
+			e.llm.push(respond(reply), respond(reply))
+			rep, err := e.run(testPlan(updatePage(alphaPath, "src/a.go")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := rep.Pages[0]; got.Result != ResultDropped || got.Reason != ReasonValidationFailed || got.Attempts != 2 {
+				t.Errorf("page = %+v, want dropped validation_failed after 2 attempts", got)
+			}
+			if retry := e.llm.requests()[1].User; !strings.Contains(retry, "previous reply for this page was rejected") {
+				t.Error("retry prompt does not carry the rejection")
+			}
+			requireSameTree(t, snap, tree(t, e.kb))
+		})
+	}
 }
 
 func TestRunRetrySucceeds(t *testing.T) {
@@ -520,12 +547,12 @@ func TestRunProfileAndTemplateOptional(t *testing.T) {
 		t.Fatalf("run without .kb: %v", err)
 	}
 	user := e.llm.requests()[0].User
-	for _, s := range []string{"# Writing guidance", "# Page template for type"} {
+	for _, s := range []string{"<<<WRITING-GUIDANCE>>>", "<<<PAGE-TEMPLATE"} {
 		if strings.Contains(user, s) {
 			t.Errorf("prompt contains %q without the optional file", s)
 		}
 	}
-	if !strings.Contains(user, "# Reference page product/b.md") {
+	if !strings.Contains(user, "<<<REFERENCE-PAGE path=\"product/b.md\">>>") {
 		t.Error("prompt is missing the reference page")
 	}
 }
@@ -539,7 +566,7 @@ func TestRunTypeWithPathSelectsNoTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	user := e.llm.requests()[0].User
-	if strings.Contains(user, "# Title\n\nSummary.") || strings.Contains(user, "# Page template for type") {
+	if strings.Contains(user, "# Title\n\nSummary.") || strings.Contains(user, "<<<PAGE-TEMPLATE") {
 		t.Error("a type with a path selected the concept template")
 	}
 }
