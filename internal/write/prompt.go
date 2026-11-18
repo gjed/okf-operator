@@ -14,7 +14,7 @@ var (
 	pageTemplate = template.Must(template.New("page").Option("missingkey=error").Parse(prompts.Page))
 )
 
-// promptData fills prompts/page.tmpl.
+// promptData fills prompts/page.md.
 type promptData struct {
 	Profile         string
 	Type            string

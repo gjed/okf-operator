@@ -6,10 +6,10 @@ import _ "embed"
 
 // System is the system message for every page call.
 //
-//go:embed system.txt
+//go:embed system.md
 var System string
 
 // Page is the text/template for the user message of one page call.
 //
-//go:embed page.tmpl
+//go:embed page.md
 var Page string

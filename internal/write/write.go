@@ -42,7 +42,7 @@ const (
 // NoChange is the reply that tells write the page is still accurate.
 const NoChange = "NO_CHANGE"
 
-// promptMarker matches the block marker lines of prompts/page.tmpl. A reply
+// promptMarker matches the block marker lines of prompts/page.md. A reply
 // that contains one echoed the prompt instead of returning the page.
 var promptMarker = regexp.MustCompile(`(?m)^<<<(END-)?(WRITING-GUIDANCE|PAGE-TEMPLATE|REFERENCE-PAGE|CURRENT-PAGE|UNTRUSTED-SOURCE-DATA)\b[^\n]*`)
 
