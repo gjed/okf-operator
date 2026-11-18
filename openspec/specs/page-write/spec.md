@@ -130,7 +130,7 @@ Pages with `state: create` or `state: missing` SHALL NOT be sent to the model. T
 
 ### Requirement: All-or-nothing working tree
 
-`write` SHALL modify files under `--knowledge-dir` only after every planned page has been processed. When the run exits non-zero, no file under `--knowledge-dir` SHALL have been modified.
+`write` SHALL modify files under `--knowledge-dir` only after every planned page has been processed. When the run exits non-zero, no file under `--knowledge-dir` SHALL have been modified. Each page SHALL be replaced through a temporary file and a rename, so no page is ever left half-written.
 
 #### Scenario: Model endpoint fails mid-run
 

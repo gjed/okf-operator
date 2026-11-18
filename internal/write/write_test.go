@@ -2,6 +2,8 @@ package write
 
 import (
 	"bytes"
+
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -436,6 +438,38 @@ func TestCapPullRequests(t *testing.T) {
 		if len(kept) != tc.kept || omitted != tc.omitted || (len(kept) > 0 && kept[len(kept)-1].Number != 3) {
 			t.Errorf("limit %d: kept %v omitted %d, want %d kept ending at #3 and %d omitted", tc.limit, kept, omitted, tc.kept, tc.omitted)
 		}
+	}
+}
+
+// A changed page keeps its file mode, and the temp file used to replace it,
+// including a stale one from an interrupted run, is gone afterwards.
+func TestRunReplacesPageAtomically(t *testing.T) {
+	e := newEnv(t)
+	page := filepath.Join(e.kb, filepath.FromSlash(alphaPath))
+	if err := os.Chmod(page, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(filepath.Dir(page), "."+filepath.Base(page)+".okf-tmp")
+	if err := os.WriteFile(stale, []byte("left over"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.llm.push(respond(alphaNew))
+	rep, err := e.run(testPlan(updatePage(alphaPath, "src/a.go")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Pages[0].Result != ResultChanged {
+		t.Fatalf("page = %+v", rep.Pages[0])
+	}
+	fi, err := os.Stat(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v, want 0600", fi.Mode().Perm())
+	}
+	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("temp file still present: %v", err)
 	}
 }
 
