@@ -20,3 +20,5 @@ repos:
     rev: v0.24.1
     hooks:
       - id: markdownlint-cli2
+        # Model prompts: Go templates whose exact bytes the model receives.
+        exclude: ^prompts/
