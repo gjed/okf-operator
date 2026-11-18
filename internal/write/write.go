@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -454,14 +456,44 @@ func writePages(root *os.Root, jobs []*job) error {
 		if j.result.Result != ResultChanged {
 			continue
 		}
-		fi, err := root.Stat(j.page.Path)
-		if err == nil {
-			err = root.WriteFile(j.page.Path, j.output, fi.Mode().Perm())
-		}
-		if err != nil {
+		if err := replaceFile(root, j.page.Path, j.output); err != nil {
 			return fmt.Errorf("write page %s (already written: %s): %w", j.page.Path, strings.Join(written, ", "), err)
 		}
 		written = append(written, j.page.Path)
 	}
 	return nil
+}
+
+// replaceFile writes data to a temporary file next to name and renames it over
+// name, so an interrupted write never leaves a half-written page.
+func replaceFile(root *os.Root, name string, data []byte) (err error) {
+	fi, err := root.Stat(name)
+	if err != nil {
+		return err
+	}
+	tmp := path.Join(path.Dir(name), "."+path.Base(name)+".okf-tmp")
+	// A temp file left by an interrupted run is replaced, never followed.
+	if err := root.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = root.Remove(tmp)
+		}
+	}()
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return err
+	}
+	return root.Rename(tmp, name)
 }
