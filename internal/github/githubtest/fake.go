@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,49 @@ type Fake struct {
 	repos         map[string][2]string         // "owner/name" -> default branch, head SHA
 	compares      map[string][]byte            // "owner/name base...head" -> body
 	commitPulls   map[string][]byte            // "owner/name sha" -> body
+	commits       map[string]bool              // "owner/name@sha" -> exists
+	pulls         map[string]Pull              // "owner/name#n" -> pull request
+	pullFiles     map[string][]PullFile        // "owner/name#n" -> changed files
+}
+
+// Pull is the part of a pull request the fake serves.
+type Pull struct {
+	Head    string // head commit SHA
+	BaseRef string // base branch name
+	// ChangedFiles is the PR's changed_files count. Zero means the number of
+	// files set with SetPullFiles.
+	ChangedFiles int
+}
+
+// PullFile is one entry of GET /repos/{repo}/pulls/{n}/files.
+type PullFile struct {
+	Filename         string `json:"filename"`
+	Status           string `json:"status"`
+	Additions        int    `json:"additions"`
+	Deletions        int    `json:"deletions"`
+	PreviousFilename string `json:"previous_filename,omitempty"`
+}
+
+// SetCommit declares that sha exists in repo, so the SHA media type commit
+// endpoint answers it.
+func (f *Fake) SetCommit(repo, sha string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commits[repo+"@"+sha] = true
+}
+
+// SetPull stores pull request number n of repo.
+func (f *Fake) SetPull(repo string, n int, p Pull) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pulls[repo+"#"+strconv.Itoa(n)] = p
+}
+
+// SetPullFiles stores the changed files of pull request number n of repo.
+func (f *Fake) SetPullFiles(repo string, n int, files []PullFile) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pullFiles[repo+"#"+strconv.Itoa(n)] = files
 }
 
 // SetRepo declares a repo with its default branch and the SHA at its head.
@@ -84,6 +128,9 @@ func New(t testing.TB) *Fake {
 		repos:             map[string][2]string{},
 		compares:          map[string][]byte{},
 		commitPulls:       map[string][]byte{},
+		commits:           map[string]bool{},
+		pulls:             map[string]Pull{},
+		pullFiles:         map[string][]PullFile{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
@@ -93,6 +140,8 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{ref}", f.commit)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/compare/{basehead}", f.compare)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{sha}/pulls", f.commitPullRequests)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}", f.pull)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}/files", f.listPullFiles)
 	f.Server = httptest.NewServer(f.record(mux))
 	t.Cleanup(f.Close)
 	return f
@@ -197,15 +246,82 @@ func (f *Fake) repo(w http.ResponseWriter, r *http.Request) {
 }
 
 // commit answers the SHA media type that GetCommitSHA1 requests, for the
-// default branch or the head SHA.
+// default branch, the head SHA or a SHA declared with SetCommit.
 func (f *Fake) commit(w http.ResponseWriter, r *http.Request) {
-	repo, ok := f.lookupRepo(r)
+	name := r.PathValue("owner") + "/" + r.PathValue("repo")
 	ref := r.PathValue("ref")
-	if !ok || (ref != repo[0] && ref != repo[1]) || !strings.Contains(r.Header.Get("Accept"), "sha") {
+	f.mu.Lock()
+	declared := f.commits[name+"@"+ref]
+	f.mu.Unlock()
+	if !strings.Contains(r.Header.Get("Accept"), "sha") {
+		NotFound(w)
+		return
+	}
+	if declared {
+		_, _ = io.WriteString(w, ref)
+		return
+	}
+	repo, ok := f.lookupRepo(r)
+	if !ok || (ref != repo[0] && ref != repo[1]) {
 		NotFound(w)
 		return
 	}
 	_, _ = io.WriteString(w, repo[1])
+}
+
+func pullKey(r *http.Request) string {
+	return r.PathValue("owner") + "/" + r.PathValue("repo") + "#" + r.PathValue("n")
+}
+
+func (f *Fake) pull(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	p, ok := f.pulls[pullKey(r)]
+	files := len(f.pullFiles[pullKey(r)])
+	f.mu.Unlock()
+	if !ok {
+		NotFound(w)
+		return
+	}
+	if p.ChangedFiles == 0 {
+		p.ChangedFiles = files
+	}
+	n, _ := strconv.Atoi(r.PathValue("n"))
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"number":        n,
+		"changed_files": p.ChangedFiles,
+		"head":          map[string]any{"sha": p.Head},
+		"base":          map[string]any{"ref": p.BaseRef},
+	})
+}
+
+// listPullFiles serves one page of a pull request's files and a Link header to the
+// next page, as GitHub paginates them.
+func (f *Fake) listPullFiles(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	_, ok := f.pulls[pullKey(r)]
+	all := f.pullFiles[pullKey(r)]
+	f.mu.Unlock()
+	if !ok {
+		NotFound(w)
+		return
+	}
+	per, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if per <= 0 {
+		per = 30
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page = max(page, 1)
+	start := min((page-1)*per, len(all))
+	end := min(start+per, len(all))
+	if end < len(all) {
+		next := *r.URL
+		q := next.Query()
+		q.Set("page", strconv.Itoa(page+1))
+		q.Set("per_page", strconv.Itoa(per))
+		next.RawQuery = q.Encode()
+		w.Header().Set("Link", `<`+f.URL+next.RequestURI()+`>; rel="next"`)
+	}
+	WriteJSON(w, http.StatusOK, append([]PullFile{}, all[start:end]...))
 }
 
 func (f *Fake) compare(w http.ResponseWriter, r *http.Request) {

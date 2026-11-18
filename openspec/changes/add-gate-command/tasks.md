@@ -8,7 +8,7 @@
 
 ## 2. Test fake
 
-- [ ] 2.1 Add `SetPull`, `SetPullFiles` and `SetCommit` to `internal/github/githubtest` with the pulls, pull files and any-SHA commit endpoints, and verify `go test ./internal/github/...` passes unchanged and a new test reads each endpoint through go-github
+- [x] 2.1 Add `SetPull`, `SetPullFiles` and `SetCommit` to `internal/github/githubtest` with the pulls, pull files and any-SHA commit endpoints, and verify `go test ./internal/github/...` passes unchanged and a new test reads each endpoint through go-github
 
 ## 3. Gate core
 
