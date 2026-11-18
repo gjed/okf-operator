@@ -93,7 +93,8 @@ func (g GitHubDiffer) Range(ctx context.Context, repo, base, head string, paths 
 	}
 	for _, f := range cmp.Files {
 		patch := f.GetPatch()
-		if f.GetChanges() > 0 && patch == "" {
+		// A modified binary has changes 0 and no patch.
+		if patch == "" && (f.GetChanges() > 0 || f.GetStatus() == "modified") {
 			continue
 		}
 		for _, name := range []string{f.GetFilename(), f.GetPreviousFilename()} {
