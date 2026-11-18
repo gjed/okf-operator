@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/gjed/okf-operator/internal/github"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
@@ -184,5 +186,186 @@ func TestDirPages(t *testing.T) {
 	}
 	if _, err := pages.Exists("infra/dir.md"); err == nil {
 		t.Fatal("a directory is not a page")
+	}
+}
+
+const (
+	patchBase = "1111111111111111111111111111111111111111"
+	patchHead = "3333333333333333333333333333333333333333"
+	patchSHA1 = "2222222222222222222222222222222222222222"
+	patchSHA2 = "3333333333333333333333333333333333333333"
+)
+
+func rangeDiffer(t *testing.T) (GitHubDiffer, *githubtest.Fake) {
+	t.Helper()
+	d, fake := differ(t)
+	fake.SetCompare(repo, patchBase, patchHead, fixture(t, "patches"))
+	return d, fake
+}
+
+func TestDifferRangePatches(t *testing.T) {
+	d, _ := rangeDiffer(t)
+	paths := []string{"docs/full.md", "docs/omitted.md", "docs/emptied.md", "docs/empty.md",
+		"docs/new.md", "docs/old.md", "docs/renamed-only.md", "docs/renamed-before.md", "docs/not-changed.md"}
+	got, err := d.Range(context.Background(), repo, patchBase, patchHead, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const renamePatch = "@@ -1 +1 @@\n-Before.\n+After."
+	want := map[string]string{
+		"docs/full.md":           "@@ -1,3 +1,4 @@\n # Title\n-Old line.\n+New line.\n+Added line.\n Keep.",
+		"docs/empty.md":          "",
+		"docs/new.md":            renamePatch,
+		"docs/old.md":            renamePatch,
+		"docs/renamed-only.md":   "",
+		"docs/renamed-before.md": "",
+	}
+	if len(got.Patches) != len(want) {
+		t.Fatalf("patches = %q, want keys %v", got.Patches, want)
+	}
+	for p, w := range want {
+		if v, ok := got.Patches[p]; !ok || v != w {
+			t.Errorf("patch[%s] = %q, %v; want %q", p, v, ok, w)
+		}
+	}
+	// Omitted patch, changed file with empty patch, and unrequested paths are absent.
+	for _, p := range []string{"docs/omitted.md", "docs/emptied.md", "docs/not-changed.md"} {
+		if _, ok := got.Patches[p]; ok {
+			t.Errorf("%s present, want absent", p)
+		}
+	}
+	if len(got.Commits) != 3 || got.Commits[0] != patchSHA1 || got.Commits[2] != "4444444444444444444444444444444444444444" || got.TotalCommits != 3 {
+		t.Errorf("commits = %v total %d", got.Commits, got.TotalCommits)
+	}
+}
+
+func TestDifferRangeErrors(t *testing.T) {
+	d, fake := rangeDiffer(t)
+	files := make([]map[string]string, MaxCompareFiles)
+	for i := range files {
+		files[i] = map[string]string{"filename": fmt.Sprintf("f%03d.go", i), "status": "modified"}
+	}
+	body, _ := json.Marshal(map[string]any{"status": "ahead", "files": files})
+	fake.SetCompare(repo, "a", "b", body)
+	for name, tc := range map[string]struct {
+		base, head string
+		want       error
+	}{
+		"behind":    {aheadHead, aheadBase, ErrDiverged},
+		"404":       {"0000000000000000000000000000000000000000", aheadHead, ErrDiverged},
+		"300 files": {"a", "b", ErrIncomplete},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := d.Range(context.Background(), repo, tc.base, tc.head, []string{"f000.go"})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+// The compare API lists at most 250 commits; Range keeps those and reports the total.
+func TestRangeCommitCapWarns(t *testing.T) {
+	d, fake := rangeDiffer(t)
+	commits := make([]map[string]string, MaxCompareCommits)
+	for i := range commits {
+		commits[i] = map[string]string{"sha": fmt.Sprintf("%040x", i+1)}
+	}
+	body, _ := json.Marshal(map[string]any{"status": "ahead", "total_commits": MaxCompareCommits + 1, "commits": commits, "files": []any{}})
+	fake.SetCompare(repo, "a", "b", body)
+	got, err := d.Range(context.Background(), repo, "a", "b", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Commits) != MaxCompareCommits || got.TotalCommits != MaxCompareCommits+1 {
+		t.Fatalf("commits = %d total = %d", len(got.Commits), got.TotalCommits)
+	}
+	var buf bytes.Buffer
+	got.WarnCommitCap(slog.New(slog.NewTextHandler(&buf, nil)), repo)
+	if !strings.Contains(buf.String(), "level=WARN") || !strings.Contains(buf.String(), "total_commits=251") {
+		t.Errorf("log = %q, want a warning", buf.String())
+	}
+	buf.Reset()
+	Range{Commits: []string{patchSHA1}, TotalCommits: 1}.WarnCommitCap(slog.New(slog.NewTextHandler(&buf, nil)), repo)
+	if buf.Len() != 0 {
+		t.Errorf("log = %q, want none below the cap", buf.String())
+	}
+}
+
+func pullJSON(number int, merged bool, title, body string) map[string]any {
+	var mergedAt any
+	if merged {
+		mergedAt = "2026-11-10T10:00:00Z"
+	}
+	return map[string]any{"number": number, "title": title, "body": body, "state": "closed", "merged_at": mergedAt}
+}
+
+func pullsBody(t *testing.T, prs ...map[string]any) []byte {
+	t.Helper()
+	b, err := json.Marshal(prs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestDifferPullRequestsDedupeAndFilter(t *testing.T) {
+	d, fake := rangeDiffer(t)
+	fake.SetCommitPulls(repo, patchSHA1, pullsBody(t,
+		pullJSON(12, true, "Second", "b12"),
+		pullJSON(7, true, "Seven", "b7"),
+		pullJSON(9, false, "Still open", "open body"),
+	))
+	fake.SetCommitPulls(repo, patchSHA2, pullsBody(t,
+		pullJSON(7, true, "Seven", "b7"),
+		pullJSON(3, true, "Three", ""),
+	))
+	// patchSHA3 has no pull requests: the fake answers an empty list.
+	got, err := d.PullRequests(context.Background(), repo, []string{patchSHA1, patchSHA2, "4444444444444444444444444444444444444444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []PullRequest{
+		{Number: 3, Title: "Three"},
+		{Number: 7, Title: "Seven", Body: "b7"},
+		{Number: 12, Title: "Second", Body: "b12"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("pr %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestDifferPullRequestsBodyCap(t *testing.T) {
+	cases := map[string]struct {
+		body      string
+		want      string
+		truncated bool
+	}{
+		"exactly 4096 bytes": {strings.Repeat("a", 4096), strings.Repeat("a", 4096), false},
+		"over the cap":       {strings.Repeat("a", 5000), strings.Repeat("a", 4096), true},
+		// é is two bytes at 4095-4096: cutting at 4096 would split it.
+		"multibyte at boundary": {strings.Repeat("a", 4095) + "é" + "tail", strings.Repeat("a", 4095), true},
+		"multibyte inside cap":  {strings.Repeat("é", 3000), strings.Repeat("é", 2048), true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			d, fake := rangeDiffer(t)
+			fake.SetCommitPulls(repo, patchSHA1, pullsBody(t, pullJSON(1, true, "T", tc.body)))
+			got, err := d.PullRequests(context.Background(), repo, []string{patchSHA1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || got[0].Body != tc.want || got[0].BodyTruncated != tc.truncated {
+				t.Fatalf("got body len %d truncated %v, want len %d truncated %v", len(got[0].Body), got[0].BodyTruncated, len(tc.want), tc.truncated)
+			}
+			if !utf8.ValidString(got[0].Body) {
+				t.Fatal("body is not valid UTF-8")
+			}
+		})
 	}
 }

@@ -37,6 +37,7 @@ type Fake struct {
 	files         map[string]map[string]string // "owner/name@ref" -> path -> content
 	repos         map[string][2]string         // "owner/name" -> default branch, head SHA
 	compares      map[string][]byte            // "owner/name base...head" -> body
+	commitPulls   map[string][]byte            // "owner/name sha" -> body
 }
 
 // SetRepo declares a repo with its default branch and the SHA at its head.
@@ -51,6 +52,14 @@ func (f *Fake) SetCompare(repo, base, head string, body []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.compares[repo+" "+base+"..."+head] = body
+}
+
+// SetCommitPulls stores the response body of GET /repos/{repo}/commits/{sha}/pulls.
+// A commit without one answers an empty list.
+func (f *Fake) SetCommitPulls(repo, sha string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commitPulls[repo+" "+sha] = body
 }
 
 // SetFile stores a file on a branch of a repo. A branch exists once it has a file.
@@ -74,6 +83,7 @@ func New(t testing.TB) *Fake {
 		files:             map[string]map[string]string{},
 		repos:             map[string][2]string{},
 		compares:          map[string][]byte{},
+		commitPulls:       map[string][]byte{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
@@ -82,6 +92,7 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("GET /repos/{owner}/{repo}", f.repo)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{ref}", f.commit)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/compare/{basehead}", f.compare)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{sha}/pulls", f.commitPullRequests)
 	f.Server = httptest.NewServer(f.record(mux))
 	t.Cleanup(f.Close)
 	return f
@@ -204,6 +215,17 @@ func (f *Fake) compare(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		NotFound(w)
 		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(body)
+}
+
+func (f *Fake) commitPullRequests(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	body, ok := f.commitPulls[r.PathValue("owner")+"/"+r.PathValue("repo")+" "+r.PathValue("sha")]
+	f.mu.Unlock()
+	if !ok {
+		body = []byte("[]")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(body)

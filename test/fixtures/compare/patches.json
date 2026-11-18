@@ -1,0 +1,88 @@
+{
+  "url": "https://api.github.com/repos/gjed/okf-operator/compare/1111111111111111111111111111111111111111...3333333333333333333333333333333333333333",
+  "status": "ahead",
+  "ahead_by": 3,
+  "behind_by": 0,
+  "total_commits": 3,
+  "base_commit": {
+    "sha": "1111111111111111111111111111111111111111"
+  },
+  "merge_base_commit": {
+    "sha": "1111111111111111111111111111111111111111"
+  },
+  "commits": [
+    {
+      "sha": "2222222222222222222222222222222222222222",
+      "commit": {
+        "message": "docs: update the intro"
+      }
+    },
+    {
+      "sha": "3333333333333333333333333333333333333333",
+      "commit": {
+        "message": "docs: move the design"
+      }
+    },
+    {
+      "sha": "4444444444444444444444444444444444444444",
+      "commit": {
+        "message": "chore: empty marker"
+      }
+    }
+  ],
+  "files": [
+    {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "filename": "docs/full.md",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "changes": 3,
+      "patch": "@@ -1,3 +1,4 @@\n # Title\n-Old line.\n+New line.\n+Added line.\n Keep."
+    },
+    {
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "filename": "docs/omitted.md",
+      "status": "modified",
+      "additions": 40,
+      "deletions": 30,
+      "changes": 70
+    },
+    {
+      "sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "filename": "docs/emptied.md",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 2,
+      "changes": 2,
+      "patch": ""
+    },
+    {
+      "sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "filename": "docs/empty.md",
+      "status": "added",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0
+    },
+    {
+      "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "filename": "docs/new.md",
+      "status": "renamed",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "patch": "@@ -1 +1 @@\n-Before.\n+After.",
+      "previous_filename": "docs/old.md"
+    },
+    {
+      "sha": "ffffffffffffffffffffffffffffffffffffffff",
+      "filename": "docs/renamed-only.md",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "previous_filename": "docs/renamed-before.md"
+    }
+  ]
+}

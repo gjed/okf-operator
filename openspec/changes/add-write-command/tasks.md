@@ -2,16 +2,16 @@
 
 ## 1. Provenance
 
-- [ ] 1.1 Implement `provenance.Fields`, `Parse` and `Stamp` on a `yaml.Node` (replace in place, append missing keys in fixed order, preserve other keys and the body), and verify table tests for: no frontmatter, malformed YAML, wrong key type, model-written provenance overwritten, custom key kept in position, `Stamp` then `Parse` round trip with a byte-identical body
+- [x] 1.1 Implement `provenance.Fields`, `Parse` and `Stamp` on a `yaml.Node` (replace in place, append missing keys in fixed order, preserve other keys and the body), and verify table tests for: no frontmatter, malformed YAML, wrong key type, model-written provenance overwritten, custom key kept in position, `Stamp` then `Parse` round trip with a byte-identical body
 
 ## 2. Model client
 
-- [ ] 2.1 Implement `internal/model` (chat completions request, `temperature: 0`, `max_tokens`, optional bearer key, reply text, finish reason and usage, 5-minute timeout, redacted bounded error body), and verify `httptest` tests for: request shape, no `Authorization` header without a key, `finish_reason: length`, missing `usage`, HTTP 500 and 401 errors
+- [x] 2.1 Implement `internal/model` (chat completions request, `temperature: 0`, `max_tokens`, optional bearer key, reply text, finish reason and usage, 5-minute timeout, redacted bounded error body), and verify `httptest` tests for: request shape, no `Authorization` header without a key, `finish_reason: length`, missing `usage`, HTTP 500 and 401 errors
 
 ## 3. Source data
 
-- [ ] 3.1 Add `GitHubDiffer.Patches` (one compare call, keyed by new and previous filename, absent when omitted, empty patch with `changes > 0` treated as absent), and verify tests against recorded compare fixtures in `test/fixtures/compare/` for: full patch, omitted patch, rename, `changes == 0`; and verify `go test ./internal/plan/` keeps the plan golden file unchanged
-- [ ] 3.2 Add PR listing for the range's commits (dedupe, merged only, sorted, 4 KiB body cap, warning above 250 commits) and the "PRs for a commit" endpoint in `githubtest`, and verify tests for dedupe, unmerged filtering, truncation and the warning
+- [x] 3.1 Add `GitHubDiffer.Patches` (one compare call, keyed by new and previous filename, absent when omitted, empty patch with `changes > 0` treated as absent), and verify tests against recorded compare fixtures in `test/fixtures/compare/` for: full patch, omitted patch, rename, `changes == 0`; and verify `go test ./internal/plan/` keeps the plan golden file unchanged
+- [x] 3.2 Add PR listing for the range's commits (dedupe, merged only, sorted, 4 KiB body cap, warning above 250 commits) and the "PRs for a commit" endpoint in `githubtest`, and verify tests for dedupe, unmerged filtering, truncation and the warning
 
 ## 4. Write
 
