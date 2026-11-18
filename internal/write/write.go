@@ -405,6 +405,9 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 	if got, want := pageType(page), pageType(j.current); got != want {
 		return nil, false, fmt.Errorf("the page type is %q but must stay %q", got, want)
 	}
+	if missing := missingKeys(j.current, page); len(missing) > 0 {
+		return nil, false, fmt.Errorf("the reply drops the frontmatter keys %s: keep every existing key", strings.Join(missing, ", "))
+	}
 	out, err := provenance.Stamp(page, f)
 	if err != nil {
 		return nil, false, err

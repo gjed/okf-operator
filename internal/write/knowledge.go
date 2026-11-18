@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/gjed/okf-operator/internal/provenance"
 )
 
 // Knowledge repo config paths, relative to the checkout root.
@@ -140,6 +142,45 @@ func pageType(page []byte) string {
 		return ""
 	}
 	return strings.TrimSpace(m.Type)
+}
+
+// frontmatterKeys returns the top-level keys of page's frontmatter mapping, in
+// order, or nil when it has none.
+func frontmatterKeys(page []byte) []string {
+	fm, _, ok := frontmatter(page)
+	if !ok {
+		return nil
+	}
+	var doc yaml.Node
+	if yaml.Unmarshal(fm, &doc) != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	var keys []string
+	for i := 0; i+1 < len(doc.Content[0].Content); i += 2 {
+		keys = append(keys, doc.Content[0].Content[i].Value)
+	}
+	return keys
+}
+
+// missingKeys lists the top-level frontmatter keys of current, other than the
+// provenance keys, that reply lacks.
+func missingKeys(current, reply []byte) []string {
+	have := map[string]bool{}
+	for _, k := range frontmatterKeys(reply) {
+		have[k] = true
+	}
+	var missing []string
+	for _, k := range frontmatterKeys(current) {
+		if !have[k] && !provenanceKey[k] {
+			missing = append(missing, k)
+		}
+	}
+	return missing
+}
+
+var provenanceKey = map[string]bool{
+	provenance.KeySourceRepo: true, provenance.KeySourceSHA: true, provenance.KeySourcePaths: true,
+	provenance.KeyUpdatedAt: true, provenance.KeyGeneratedBy: true,
 }
 
 // frontmatter splits page into the YAML between the opening "---" line and

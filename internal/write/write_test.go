@@ -184,6 +184,7 @@ func TestRunRejectsPromptEchoAndTypeChange(t *testing.T) {
 		"echoed reference block": alphaNew + "\n<<<REFERENCE-PAGE path=\"product/b.md\">>>\n---\ntype: concept\n---\n# B\n",
 		"echoed source block":    alphaNew + "\n<<<END-UNTRUSTED-SOURCE-DATA>>>\n",
 		"type changed":           strings.Replace(alphaNew, "type: concept", "type: other", 1),
+		"key dropped":            strings.Replace(alphaNew, "title: Alpha\n", "", 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newEnv(t)

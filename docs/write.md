@@ -37,7 +37,7 @@ Style references are picked automatically. The candidates are the `.md` files in
 
 ## Validation
 
-Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping, a non-empty string `type`, a non-empty body and a name that is not `index.md` or `log.md`. It must keep the current page's `type` and must not contain a block marker line from the prompt. An invalid reply, or one cut off at the token limit, gets one retry with the error. A second failure drops the page.
+Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping, a non-empty string `type`, a non-empty body and a name that is not `index.md` or `log.md`. It must keep the current page's `type` and every other top-level frontmatter key, and must not contain a block marker line from the prompt. An invalid reply, or one cut off at the token limit, gets one retry with the error. A second failure drops the page.
 
 ## Provenance
 
