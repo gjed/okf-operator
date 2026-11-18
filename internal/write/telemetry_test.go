@@ -70,6 +70,38 @@ func valueOf(t *testing.T, got map[string][]point, name string, match map[string
 // TestTelemetry runs one mixed write under an in-memory span recorder and
 // metric reader, and checks the write span and the three counters. It sets the
 // global MeterProvider, so it must not run in parallel with other tests that do.
+// A run that aborts on a model error still records the tokens and validation
+// failures it spent, but no page results.
+func TestTelemetryOnAbort(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	prev := otel.GetMeterProvider()
+	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)))
+	t.Cleanup(func() { otel.SetMeterProvider(prev) })
+
+	e := newEnv(t)
+	e.llm.push(withUsage(respond(alphaNew), 100, 40), withUsage(respond("bad"), 50, 5), failWith(500))
+	if _, err := Run(t.Context(), testPlan(updatePage(alphaPath, "src/a.go"), updatePage(betaPath, "src/a.go")), e.deps()); err == nil {
+		t.Fatal("Run succeeded after HTTP 500")
+	}
+	c := counters(t, reader)
+	if _, ok := c["okf.write.pages"]; ok {
+		t.Error("okf.write.pages recorded for an aborted run")
+	}
+	repo := map[string]string{"okf.source.repo": testSource, "okf.bundle": testBundle}
+	for _, tc := range []struct {
+		name, kind string
+		want       int64
+	}{{"okf.write.tokens", "prompt", 150}, {"okf.write.tokens", "completion", 45}, {"okf.write.validation_failures", "", 1}} {
+		match := map[string]string{"okf.source.repo": repo["okf.source.repo"], "okf.bundle": repo["okf.bundle"]}
+		if tc.kind != "" {
+			match["okf.token.kind"] = tc.kind
+		}
+		if got := valueOf(t, c, tc.name, match); got != tc.want {
+			t.Errorf("%s %s = %d, want %d", tc.name, tc.kind, got, tc.want)
+		}
+	}
+}
+
 func TestTelemetry(t *testing.T) {
 	spans := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))

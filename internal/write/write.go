@@ -227,14 +227,16 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		f := fields
 		f.SourcePaths = slices.Sorted(slices.Values(j.page.SourcePaths))
 		n, err := process(ctx, j, f, d)
+		failures += n
 		if err != nil {
+			recordAborted(ctx, rep, jobs, failures)
 			return nil, err
 		}
-		failures += n
 		d.Logger.InfoContext(ctx, "page processed", "page", j.page.Path, "result", j.result.Result, "reason", j.result.Reason, "attempts", j.result.Attempts)
 	}
 
 	if err := writePages(root, jobs); err != nil {
+		recordAborted(ctx, rep, jobs, failures)
 		return nil, err
 	}
 	for _, j := range jobs {
