@@ -66,7 +66,7 @@ The source repo is the plan's `source`. A page whose `source_repo` is a differen
 
 ### Rule details
 
-- `provenance`: parses the page at the head with `internal/provenance`, then `GetCommitSHA1(source_repo, source_sha)`. Each unique SHA is looked up once.
+- `provenance`: parses the page at the head with `internal/provenance`, then `GetCommitSHA1(source_repo, source_sha)`. Each unique SHA is looked up once. GitHub answers an unknown 40-hex SHA with 422 "No commit found for SHA", not 404 (checked against `cli/cli`), so both fail the rule. Any other status fails the run.
 - `routed_set`: set membership against `plan.pages[].path`.
 - `allowlist`: the bundle is checked once. The page `type` is read from the page at the base commit with the `internal/provenance` frontmatter reader (or the pinned `skosovsky/okf` parser it wraps, whichever B1 exposes). A head `type` different from the base `type` fails the rule.
 - `change_shape`: files API `status` must be `modified`. Any path under `.kb/` fails, whatever its status.
