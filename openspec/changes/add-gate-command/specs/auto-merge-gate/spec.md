@@ -45,7 +45,7 @@ Changed page contents SHALL be read at the PR's head SHA, recorded once at the s
 
 ### Requirement: Provenance rule
 
-The `provenance` rule SHALL pass only when every changed page carries all five provenance fields (`source_repo`, `source_sha`, `source_paths`, `updated_at`, `generated_by`) as `internal/provenance` defines them, `source_repo` is the plan's source, and `source_sha` exists in `source_repo`. A 404 for the commit SHALL fail the rule. Any other API error SHALL fail the run.
+The `provenance` rule SHALL pass only when every changed page carries all five provenance fields (`source_repo`, `source_sha`, `source_paths`, `updated_at`, `generated_by`) as `internal/provenance` defines them, `source_repo` is the plan's source, and `source_sha` exists in `source_repo`. A 404 for the commit, or the 422 "No commit found for SHA" that GitHub returns for an unknown commit, SHALL fail the rule. Any other API error SHALL fail the run.
 
 #### Scenario: Missing field
 
@@ -54,7 +54,7 @@ The `provenance` rule SHALL pass only when every changed page carries all five p
 
 #### Scenario: Unknown commit
 
-- **WHEN** a changed page's `source_sha` returns 404 in `source_repo`
+- **WHEN** a changed page's `source_sha` returns 404, or 422 "No commit found for SHA", in `source_repo`
 - **THEN** the rule fails and its details name the page and the SHA
 
 #### Scenario: Source repo unavailable
