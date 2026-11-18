@@ -29,8 +29,8 @@
 
 ## 5. Evaluation and telemetry
 
-- [ ] 5.1 Implement `gate.Evaluate` running every rule in the fixed order, and verify a test that one failing rule still reports all six and a deterministic-output test that two runs on the same fake give byte-identical JSON
-- [ ] 5.2 Set the gate attributes on the dispatcher span and add `okf.gate.rule_results`, and verify a test with the in-memory span and metric exporters that asserts names, attributes and one data point per rule
+- [x] 5.1 Implement `gate.Evaluate` running every rule in the fixed order, and verify a test that one failing rule still reports all six and a deterministic-output test that two runs on the same fake give byte-identical JSON
+- [x] 5.2 Set the gate attributes on the dispatcher span and add `okf.gate.rule_results`, and verify a test with the in-memory span and metric exporters that asserts names, attributes and one data point per rule
 
 ## 6. CLI wiring
 
