@@ -95,6 +95,30 @@ GITHUB_TOKEN=$(gh auth token) okf-operator plan \
 
 `plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need `reconcile`. See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
 
+### write
+
+`write` reads a plan, asks an OpenAI-compatible model for the updated content of each planned page, stamps provenance and writes the changed pages into the knowledge checkout. It prints a JSON report to stdout and never commits or pushes.
+
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+export OKF_MODEL_BASE_URL=http://localhost:11434/v1 OKF_MODEL=qwen3:8b
+
+okf-operator plan --source cli/cli --knowledge-repo acme/kb --knowledge-dir ./kb |
+  okf-operator write --plan - --knowledge-dir ./kb
+```
+
+| Flag                                 | Description                                                        |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `--plan file\|-`                     | Plan JSON from `plan`, `-` for stdin (required)                    |
+| `--knowledge-dir path`               | Knowledge repo checkout; changed pages are written here (required) |
+| `--model-base-url url`               | Model API base URL (default `$OKF_MODEL_BASE_URL`)                 |
+| `--model name`                       | Model name (default `$OKF_MODEL`)                                  |
+| `--max-pages n`                      | Most update pages per run (default 10)                             |
+| `--max-tokens-per-page n`            | Most tokens per page, all attempts together (default 16000)        |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)    |
+
+The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1 before any model call. See [Writing pages](docs/write.md) for the profile, templates, provenance and the report.
+
 ### Telemetry
 
 Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver.

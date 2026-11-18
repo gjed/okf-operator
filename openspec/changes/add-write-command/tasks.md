@@ -23,9 +23,9 @@
 
 ## 5. CLI
 
-- [ ] 5.1 Add `Env.Stdin`, `internal/cli/write.go` (flags, model config with env fallback, inline `github.Access` for the source repo only, shared `Secrets` holding the model key) and register it in `commands.go`, and verify tests for: exit 2 on missing `--knowledge-dir` and missing model base URL, `--plan -` from stdin, App mode token request carrying only the source repo with `contents`, `metadata` and `pull_requests` read
-- [ ] 5.2 Add a secrets test that runs `write` at debug level in App mode with a model key, a 401 reply echoing the key and `GITHUB_TOKEN` set, and verify the key, the PEM and the tokens appear in none of stderr, spans or stdout, and that no model request carries a GitHub token
-- [ ] 5.3 Add `docs/write.md` (flags, model config, profile and templates, report v1, working-tree contract) and a `write` usage section in `README.md`, and verify the markdown lint passes
+- [x] 5.1 Add `Env.Stdin`, `internal/cli/write.go` (flags, model config with env fallback, inline `github.Access` for the source repo only, shared `Secrets` holding the model key) and register it in `commands.go`, and verify tests for: exit 2 on missing `--knowledge-dir` and missing model base URL, `--plan -` from stdin, App mode token request carrying only the source repo with `contents`, `metadata` and `pull_requests` read
+- [x] 5.2 Add a secrets test that runs `write` at debug level in App mode with a model key, a 401 reply echoing the key and `GITHUB_TOKEN` set, and verify the key, the PEM and the tokens appear in none of stderr, spans or stdout, and that no model request carries a GitHub token
+- [x] 5.3 Add `docs/write.md` (flags, model config, profile and templates, report v1, working-tree contract) and a `write` usage section in `README.md`, and verify the markdown lint passes
 
 ## 6. Validation and archive
 
