@@ -5,4 +5,5 @@ package cli
 var commands = []Command{
 	versionCommand,
 	planCommand,
+	writeCommand,
 }

@@ -36,6 +36,9 @@ export GITHUB_TOKEN=$(gh auth token)
 | ------- | --------------------- | --------- | --------------------------- |
 | `plan`  | Contents              | Read-only | source repo, knowledge repo |
 | `plan`  | Metadata              | Read-only | source repo, knowledge repo |
+| `write` | Contents              | Read-only | source repo                 |
+| `write` | Metadata              | Read-only | source repo                 |
+| `write` | Pull requests         | Read-only | source repo                 |
 
 Grant nothing else. Later commands document what they add.
 

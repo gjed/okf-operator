@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -26,6 +27,7 @@ type Command struct {
 
 // Env is set up once by the dispatcher and passed to every subcommand.
 type Env struct {
+	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 	Logger *slog.Logger
@@ -110,7 +112,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, build Bui
 	}()
 
 	ctx, span := otel.Tracer("okf-operator").Start(ctx, cmd.Name)
-	env := Env{Stdout: stdout, Stderr: stderr, Logger: logger, Build: build}
+	env := Env{Stdin: os.Stdin, Stdout: stdout, Stderr: stderr, Logger: logger, Build: build}
 	err = cmd.Run(ctx, env, cmdArgs)
 	if err != nil && !errors.Is(err, flag.ErrHelp) {
 		span.RecordError(err)
