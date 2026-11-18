@@ -29,6 +29,11 @@ In App mode, the CLI SHALL mint an installation token for each repository owner 
 - **WHEN** `plan` runs in App mode
 - **THEN** it requests read-only `contents` (and `metadata`) for the source repo and for the knowledge repo, and nothing else
 
+#### Scenario: Write permissions
+
+- **WHEN** `write` runs in App mode
+- **THEN** it requests read-only `contents`, `metadata` and `pull_requests` for the source repo only, and no token for the knowledge repo
+
 ### Requirement: Private key never logged
 
 The App private key and any token SHALL never appear in logs, span attributes or error messages, at any log level.

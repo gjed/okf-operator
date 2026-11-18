@@ -29,6 +29,6 @@
 
 ## 6. Validation and archive
 
-- [ ] 6.1 Verify `go build ./... && go vet ./... && go test -race ./...`, `make lint` and `openspec validate --all --strict` pass
-- [ ] 6.2 Verify one live `plan | write` run against a real public source repo, a temp knowledge dir with a hand-written `.kb/routing.yaml` and a real OpenAI-compatible endpoint, recording the page diff and the report
-- [ ] 6.3 Run `openspec archive add-write-command -y`, fix MD022 in the generated specs if flagged, and verify `openspec validate --all --strict` and the markdown lint pass
+- [x] 6.1 Verify `go build ./... && go vet ./... && go test -race ./...`, `make lint` and `openspec validate --all --strict` pass
+- [x] 6.2 Verify one live `plan | write` run against a real public source repo, a temp knowledge dir with a hand-written `.kb/routing.yaml` and a real OpenAI-compatible endpoint, recording the page diff and the report
+- [x] 6.3 Run `openspec archive add-write-command -y`, fix MD022 in the generated specs if flagged, and verify `openspec validate --all --strict` and the markdown lint pass
