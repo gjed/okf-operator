@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "pr": 42,
+  "head_sha": "2222222222222222222222222222222222222222",
+  "pass": false,
+  "rules": [
+    {
+      "name": "provenance",
+      "pass": true,
+      "details": []
+    },
+    {
+      "name": "routed_set",
+      "pass": true,
+      "details": []
+    },
+    {
+      "name": "allowlist",
+      "pass": false,
+      "details": [
+        "product/a.md: type \"Runbook\" is not allowed",
+        "product/z.md: type \"Runbook\" is not allowed"
+      ]
+    },
+    {
+      "name": "change_shape",
+      "pass": true,
+      "details": []
+    },
+    {
+      "name": "size",
+      "pass": true,
+      "details": []
+    },
+    {
+      "name": "links",
+      "pass": true,
+      "details": []
+    }
+  ]
+}
