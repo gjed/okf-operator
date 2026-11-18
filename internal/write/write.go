@@ -250,6 +250,7 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 type sourceData struct {
 	patches map[string]string
 	prs     []plan.PullRequest
+	omitted int // older PRs left out by capPullRequests
 }
 
 func fetchSource(ctx context.Context, p *plan.Plan, jobs []*job, d Deps) (sourceData, error) {
@@ -268,7 +269,31 @@ func fetchSource(ctx context.Context, p *plan.Plan, jobs []*job, d Deps) (source
 	if err != nil {
 		return sourceData{}, err
 	}
-	return sourceData{patches: rng.Patches, prs: prs}, nil
+	prs, omitted := capPullRequests(prs, MaxPRContextBytes)
+	if omitted > 0 {
+		d.Logger.InfoContext(ctx, "PR context over its budget: oldest pull requests left out of the prompts",
+			"source", p.Source, "omitted", omitted, "kept", len(prs))
+	}
+	return sourceData{patches: rng.Patches, prs: prs, omitted: omitted}, nil
+}
+
+// MaxPRContextBytes bounds the PR titles and bodies in one prompt, so the
+// per-page budget does not grow with the number of PRs in the range.
+const MaxPRContextBytes = 16 << 10
+
+// capPullRequests keeps the newest PRs (highest numbers) whose titles and
+// bodies fit in limit bytes, in number order, and returns how many it left out.
+func capPullRequests(prs []plan.PullRequest, limit int) ([]plan.PullRequest, int) {
+	size, keep := 0, len(prs)
+	for keep > 0 {
+		pr := prs[keep-1]
+		if size+len(pr.Title)+len(pr.Body) > limit {
+			break
+		}
+		size += len(pr.Title) + len(pr.Body)
+		keep--
+	}
+	return prs[keep:], keep
 }
 
 // prepare renders every first-attempt prompt and checks the budget before any
@@ -297,6 +322,7 @@ func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
 			Path:         j.page.Path,
 			Page:         string(j.current),
 			PullRequests: src.prs,
+			PROmitted:    src.omitted,
 			Hunks:        hunks,
 		}
 		var err error

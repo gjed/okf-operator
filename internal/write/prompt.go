@@ -23,6 +23,7 @@ type promptData struct {
 	Path            string
 	Page            string
 	PullRequests    []plan.PullRequest
+	PROmitted       int
 	Hunks           []hunk
 	ValidationError string
 }

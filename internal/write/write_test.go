@@ -403,6 +403,41 @@ func TestRunModelFailureMidRunLeavesCheckoutUntouched(t *testing.T) {
 	requireSameTree(t, snap, tree(t, e.kb))
 }
 
+// Only the newest PRs that fit in MaxPRContextBytes reach the prompt, and the
+// prompt says how many older ones were left out.
+func TestRunCapsPRContext(t *testing.T) {
+	e := newEnv(t)
+	// Bodies stay under the 4 KiB cap; four fit in MaxPRContextBytes, five do not.
+	body := strings.Repeat("x", 4000)
+	e.setPulls(merged(1, "one", body), merged(2, "two", body), merged(3, "three", body),
+		merged(4, "four", body), merged(5, "five", body), merged(6, "six", body))
+	e.llm.push(respond("NO_CHANGE"))
+	if _, err := e.run(testPlan(updatePage(alphaPath, "src/a.go")), maxTokens(100000)); err != nil {
+		t.Fatal(err)
+	}
+	user := e.llm.requests()[0].User
+	for _, s := range []string{"Pull request #3: three", "Pull request #6: six", "[2 older pull requests left out]"} {
+		if !strings.Contains(user, s) {
+			t.Errorf("prompt lacks %q", s)
+		}
+	}
+	for _, s := range []string{"Pull request #1:", "Pull request #2:"} {
+		if strings.Contains(user, s) {
+			t.Errorf("prompt still has %q", s)
+		}
+	}
+}
+
+func TestCapPullRequests(t *testing.T) {
+	prs := []plan.PullRequest{{Number: 1, Body: "aaaa"}, {Number: 2, Body: "bbbb"}, {Number: 3, Body: "cccc"}}
+	for _, tc := range []struct{ limit, kept, omitted int }{{100, 3, 0}, {8, 2, 1}, {7, 1, 2}, {3, 0, 3}} {
+		kept, omitted := capPullRequests(prs, tc.limit)
+		if len(kept) != tc.kept || omitted != tc.omitted || (len(kept) > 0 && kept[len(kept)-1].Number != 3) {
+			t.Errorf("limit %d: kept %v omitted %d, want %d kept ending at #3 and %d omitted", tc.limit, kept, omitted, tc.kept, tc.omitted)
+		}
+	}
+}
+
 func TestRunEmptyPlan(t *testing.T) {
 	e := newEnv(t)
 	snap := tree(t, e.kb)
