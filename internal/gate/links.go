@@ -63,10 +63,11 @@ func unbracket(t string) string {
 }
 
 // relativeTarget strips the query and fragment from a link target and
-// reports whether what is left is a relative path to check. Links with a
-// scheme, protocol-relative, root-relative and fragment-only links are not.
+// reports whether what is left is a repository path to check. Links with a
+// scheme, protocol-relative and fragment-only links are not. Root-relative
+// links (/x.md) are, since GitHub resolves them from the repository root.
 func relativeTarget(t string) (string, bool) {
-	if t == "" || urlScheme.MatchString(t) || strings.HasPrefix(t, "/") || strings.HasPrefix(t, "#") {
+	if t == "" || urlScheme.MatchString(t) || strings.HasPrefix(t, "//") || strings.HasPrefix(t, "#") {
 		return "", false
 	}
 	if i := strings.IndexAny(t, "?#"); i >= 0 {
@@ -96,6 +97,9 @@ func links(ctx context.Context, r Reader, repo, headSHA, bundle string, pages ma
 				t = dec
 			}
 			target := path.Join(path.Dir(page), t)
+			if strings.HasPrefix(t, "/") {
+				target = path.Clean(strings.TrimPrefix(t, "/"))
+			}
 			if !strings.HasPrefix(target, bundle+"/") {
 				details = append(details, fmt.Sprintf("%s: link %q resolves to %s, outside bundle %s", page, raw, target, bundle))
 				continue
