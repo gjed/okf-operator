@@ -38,3 +38,18 @@ gh api 'repos/acme/kb/contents/cursors/acme/api?ref=kb-state' --jq .content | ba
 | Any other API error                         | Exit 1, so an outage never looks like a first run                                 |
 
 A source with no cursor is never backfilled by `plan`. The first run only anchors the range end, and backfill is `reconcile`'s job.
+
+## How propose advances the cursor
+
+`propose` moves the cursor from the plan's `from` to its `to`, and only after the knowledge PR branch and the PR itself were updated successfully.
+
+| Case                                          | Result                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| Cursor holds `from`                           | Rewritten with `to`, conditional on the file's blob SHA                |
+| Initial plan, no cursor file                  | Created with `to`; no knowledge PR                                     |
+| Initial plan, `kb-state` missing              | `kb-state` created by a parentless commit holding only the cursor file |
+| `from` equals `to`                            | Nothing written                                                        |
+| Cursor differs from `from`, or exists already | Exit 1 before any write: another run moved it, re-run `plan`           |
+| Cursor changed between read and write         | GitHub answers 409 or 422, exit 1; the other run's cursor is kept      |
+
+Each advance is one commit on `kb-state`: `okf: advance cursor for <owner>/<name> to <sha>`.

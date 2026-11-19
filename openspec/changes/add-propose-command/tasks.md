@@ -6,7 +6,7 @@
 
 ## 2. Cursor writer
 
-- [ ] 2.1 Implement `cursor.Writer.Advance` (content check against `from`, compare-and-swap `PUT` with the blob SHA, orphan `kb-state` when missing, skip when `from == to`), and verify `githubtest` tests for: file advanced, initial cursor on an existing branch, `kb-state` missing → orphan commit holding only the cursor, cursor not at `from` → error and no write, cursor changed between read and write (409) → error and the other value kept, branch created concurrently (422) → error; update `docs/state.md` and verify the markdown lint passes
+- [x] 2.1 Implement `cursor.Writer.Advance` (content check against `from`, compare-and-swap `PUT` with the blob SHA, orphan `kb-state` when missing, skip when `from == to`), and verify `githubtest` tests for: file advanced, initial cursor on an existing branch, `kb-state` missing → orphan commit holding only the cursor, cursor not at `from` → error and no write, cursor changed between read and write (409) → error and the other value kept, branch created concurrently (422) → error; update `docs/state.md` and verify the markdown lint passes
 
 ## 3. Propose
 
