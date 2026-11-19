@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -78,14 +79,12 @@ func TestParseFails(t *testing.T) {
 	}
 }
 
-func TestExampleLoads(t *testing.T) {
-	if _, err := Load("../../examples/policy.yaml"); err != nil {
+func TestExampleParses(t *testing.T) {
+	data, err := os.ReadFile("../../examples/policy.yaml")
+	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestLoadMissing(t *testing.T) {
-	if _, err := Load("testdata/none.yaml"); err == nil || !strings.Contains(err.Error(), "policy") {
-		t.Fatalf("err = %v", err)
+	if _, err := Parse(data); err != nil {
+		t.Fatal(err)
 	}
 }

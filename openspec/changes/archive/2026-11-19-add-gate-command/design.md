@@ -22,7 +22,7 @@
 ### Package layout
 
 ```text
-internal/policy/    # schema v1, Parse, Load, Validate, Version, DefaultPath
+internal/policy/    # schema v1, Parse, Validate, Version, DefaultPath
 internal/gate/      # Evaluate(ctx, deps) -> Report; rules; report JSON; telemetry
 internal/cli/gate.go # flags -> two Providers -> gate.Evaluate -> JSON on stdout
 ```
@@ -42,7 +42,7 @@ limits:
 ```
 
 - Same pattern as `internal/routing`: the version is checked before strict decoding, `KnownFields(true)`, and `Validate` collects every error.
-- `Parse([]byte)` is the entry point `gate` uses, because the file comes from the API. `Load(path)` exists for symmetry and local checks.
+- `Parse([]byte)` is the only entry point, because `gate` reads the file from the API. There is no `Load(path)`: nothing reads the policy from a local file.
 - `types` and `bundles` are independent lists: a page passes when its type is listed and the plan's bundle is listed. Per-bundle type lists can come in v2 without breaking v1.
 - Limits have no defaults. A policy without limits is a configuration error, not "unlimited".
 - A missing `.kb/policy.yaml` on the base branch fails the run (exit 1). An empty allowlist is the safe default, a missing file is a misconfiguration worth a loud error.
