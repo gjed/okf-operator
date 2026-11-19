@@ -152,7 +152,7 @@ okf-operator propose --plan plan.json --report report.json \
 
 Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed pages. Any mismatch exits 1 and changes nothing.
 
-An initial plan only writes the cursor. A report with no changed page opens no PR and still advances the cursor. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
+An initial plan only writes the cursor and skips the checkout checks. A report with no changed page opens no PR and still advances the cursor. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
 
 ### gate
 

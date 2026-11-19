@@ -191,6 +191,17 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	if err := d.Cursor.Check(ctx, p.Source, p.From, p.Initial); err != nil {
 		return nil, err
 	}
+	if p.Initial {
+		// An initial plan has no pages (Agree checked the report matches): it
+		// only anchors the cursor and never touches the knowledge branches.
+		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, true); err != nil {
+			return nil, err
+		}
+		res.CursorAdvanced = true
+		d.Logger.InfoContext(ctx, "initial plan: cursor anchored without a PR", "source", p.Source, "to", p.To)
+		record(ctx, res, 0)
+		return res, nil
+	}
 
 	branch := Branch(p.Source)
 	defBranch, defHead, err := d.Knowledge.DefaultBranch(ctx)
@@ -221,12 +232,12 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 		return nil, err
 	}
 
-	if p.Initial || len(files) == 0 {
-		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, p.Initial); err != nil {
+	if len(files) == 0 {
+		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, false); err != nil {
 			return nil, err
 		}
 		res.CursorAdvanced = true
-		d.Logger.InfoContext(ctx, "no page changed: cursor advanced without a PR", "source", p.Source, "to", p.To, "initial", p.Initial)
+		d.Logger.InfoContext(ctx, "no page changed: cursor advanced without a PR", "source", p.Source, "to", p.To)
 		record(ctx, res, 0)
 		return res, nil
 	}

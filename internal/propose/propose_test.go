@@ -295,3 +295,34 @@ func mapsEqual(a, b map[string]string) bool {
 	}
 	return true
 }
+
+// Re-anchoring a source by deleting its cursor must work while its bot PR is
+// open: an initial plan touches neither the knowledge branches nor the checkout.
+func TestRunInitialWhileBotPROpen(t *testing.T) {
+	f := build(t, false)
+	for p, c := range with(map[string]string{"docs/b.md": "earlier\n"}) {
+		f.fake.SetFile(testKB, "okf/acme/api", p, c)
+	}
+	f.fake.AddPullRequest(testKB, githubtest.PullRequest{Head: "okf/acme/api", Base: "main", State: "open"})
+	botHead := f.fake.Ref(testKB, "okf/acme/api")
+	f.plan.Initial, f.plan.From, f.plan.Pages = true, "", nil
+	f.rep.From, f.rep.Pages = "", nil
+	d := f.deps(t)
+	d.Base = commit1 // neither the bot head nor the default head
+
+	res, err := Run(t.Context(), f.plan, f.rep, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Action != ActionNone || !res.CursorAdvanced || f.cursor() != testTo+"\n" {
+		t.Fatalf("result = %+v, cursor = %q", res, f.cursor())
+	}
+	for _, r := range f.fake.Requests() {
+		if strings.Contains(r, "/pulls") || strings.Contains(r, "/git/trees/") || strings.Contains(r, "okf/acme/api") {
+			t.Errorf("initial plan made knowledge request %s", r)
+		}
+	}
+	if f.fake.Ref(testKB, "okf/acme/api") != botHead {
+		t.Fatal("bot branch moved")
+	}
+}
