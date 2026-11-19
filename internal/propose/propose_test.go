@@ -2,6 +2,7 @@ package propose
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -331,4 +332,32 @@ func TestRunInitialWhileBotPROpen(t *testing.T) {
 	if f.fake.Ref(testKB, "okf/acme/api") != botHead {
 		t.Fatal("bot branch moved")
 	}
+}
+
+func TestRunNeverResetsABranchWithAnOpenPR(t *testing.T) {
+	t.Run("open PR into another base", func(t *testing.T) {
+		f := newFixture(t)
+		f.fake.SetFile(testKB, "okf/acme/api", "docs/a.md", "someone else's\n")
+		before := f.fake.Ref(testKB, "okf/acme/api")
+		n := f.fake.AddPullRequest(testKB, githubtest.PullRequest{Head: "okf/acme/api", Base: "release", State: "open"})
+		_, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("backs open PR #%d", n)) {
+			t.Fatalf("err = %v", err)
+		}
+		if f.fake.Ref(testKB, "okf/acme/api") != before || f.cursor() != testFrom+"\n" {
+			t.Fatal("branch reset or cursor advanced")
+		}
+	})
+	t.Run("422 other than an existing ref", func(t *testing.T) {
+		f := newFixture(t)
+		f.fake.SetFile(testKB, "okf/acme/api", "docs/a.md", "stale\n")
+		before := f.fake.Ref(testKB, "okf/acme/api")
+		f.fake.FailStatus["POST /repos/acme/kb/git/refs"] = http.StatusUnprocessableEntity
+		if _, err := Run(t.Context(), f.plan, f.rep, f.deps(t)); err == nil {
+			t.Fatal("want an error")
+		}
+		if f.fake.Ref(testKB, "okf/acme/api") != before {
+			t.Fatal("branch force-reset on an unrelated 422")
+		}
+	})
 }

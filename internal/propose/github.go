@@ -154,8 +154,19 @@ func (g GitHubKnowledge) MoveBranch(ctx context.Context, branch, sha string, fas
 		return nil
 	}
 	_, _, err = c.Git.CreateRef(ctx, owner, name, gogithub.CreateRef{Ref: "refs/heads/" + branch, SHA: sha})
-	if status(err) == http.StatusUnprocessableEntity {
-		// A branch left by a merged or closed bot PR: reset it.
+	if refExists(err) {
+		// A branch left by a merged or closed bot PR: reset it, unless an open
+		// PR into any base still uses it.
+		// SIMPLIFIED: a run that created the branch but has not opened its PR yet
+		// is still overwritten; runs are serialised per knowledge repo, and the
+		// cursor compare-and-swap fails the losing run.
+		prs, _, lerr := c.PullRequests.List(ctx, owner, name, &gogithub.PullRequestListOptions{State: "open", Head: owner + ":" + branch})
+		if lerr != nil {
+			return fmt.Errorf("list open PRs from %s in %s: %w", branch, g.Repo, lerr)
+		}
+		if len(prs) > 0 {
+			return fmt.Errorf("branch %s in %s backs open PR #%d: re-run plan", branch, g.Repo, prs[0].GetNumber())
+		}
 		_, _, err = c.Git.UpdateRef(ctx, owner, name, "heads/"+branch, gogithub.UpdateRef{SHA: sha, Force: new(true)})
 	}
 	if err != nil {
@@ -188,6 +199,13 @@ func (g GitHubKnowledge) EditPR(ctx context.Context, number int, body string) (*
 		return nil, fmt.Errorf("update PR #%d in %s: %w", number, g.Repo, err)
 	}
 	return pull(pr), nil
+}
+
+// refExists reports whether err is GitHub's 422 for creating a ref that exists.
+func refExists(err error) bool {
+	var e *gogithub.ErrorResponse
+	return status(err) == http.StatusUnprocessableEntity && errors.As(err, &e) &&
+		strings.Contains(e.Message, "Reference already exists")
 }
 
 func status(err error) int {
