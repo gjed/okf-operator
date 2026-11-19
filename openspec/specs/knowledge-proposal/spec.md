@@ -36,7 +36,7 @@ Defines the `propose` subcommand: given a plan, its write report and the knowled
 
 ### Requirement: Input contract is verified, not trusted
 
-Before any GitHub write, `propose` SHALL compare every file under `--knowledge-dir`, except the top-level `.git`, with the recursive tree of `--knowledge-base`. Pages the report marks `changed` SHALL differ from the base; every other path SHALL be present on both sides and byte-identical. A truncated tree or any other difference SHALL exit 1 naming the offending paths.
+Before any GitHub write for a plan that is not initial, `propose` SHALL compare every file under `--knowledge-dir`, except the top-level `.git`, with the recursive tree of `--knowledge-base`. Pages the report marks `changed` SHALL differ from the base; every other path SHALL be present on both sides and byte-identical. A truncated tree or any other difference SHALL exit 1 naming the offending paths.
 
 #### Scenario: Unreported file modified
 
@@ -73,7 +73,7 @@ The bot branch for source `owner/name` SHALL be `okf/owner/name` in the knowledg
 
 ### Requirement: Checkout at the expected head
 
-`--knowledge-base` SHALL equal the open bot PR's head, or the default branch head when no bot PR is open, and SHALL be the parent of the new commit. Otherwise `propose` SHALL exit 1 before any GitHub write, naming the branch and head to check out.
+For a plan that is not initial, `--knowledge-base` SHALL equal the open bot PR's head, or the default branch head when no bot PR is open, and SHALL be the parent of the new commit. Otherwise `propose` SHALL exit 1 before any GitHub write, naming the branch and head to check out.
 
 #### Scenario: Checkout behind the bot branch
 
@@ -102,6 +102,11 @@ The PR body section for a run SHALL link every merged source PR that introduced 
 
 - **WHEN** the plan has `initial: true`
 - **THEN** `propose` writes the cursor with `to`, opens no PR and makes no knowledge commit, and the result action is `none`
+
+#### Scenario: Initial plan while a bot PR is open
+
+- **WHEN** the plan has `initial: true`, a bot PR for the source is open and `--knowledge-base` is not its head
+- **THEN** `propose` writes the cursor and reads neither the knowledge branches nor the checkout
 
 #### Scenario: Nothing changed
 
