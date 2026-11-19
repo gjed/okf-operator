@@ -5,11 +5,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/gjed/okf-operator/internal/provenance"
 )
 
 var (
@@ -20,8 +23,7 @@ var (
 )
 
 // linkTargets returns the targets of inline links, images and reference
-// definitions in a Markdown page, skipping a leading frontmatter block,
-// fenced code blocks and code spans.
+// definitions in a Markdown body, skipping fenced code blocks and code spans.
 //
 // SIMPLIFIED: a line-based regex scan, not a CommonMark parser. It misses
 // autolinks and HTML links and can misread exotic nesting. Upgrade path: a
@@ -30,20 +32,10 @@ func linkTargets(page []byte) []string {
 	var out []string
 	sc := bufio.NewScanner(bytes.NewReader(page))
 	sc.Buffer(make([]byte, 0, 64*1024), len(page)+1)
-	line, frontmatter, fence := 0, false, ""
+	fence := ""
 	for sc.Scan() {
 		text := sc.Text()
-		line++
 		trimmed := strings.TrimSpace(text)
-		// The frontmatter is skipped by its --- delimiters only, not parsed.
-		if line == 1 && trimmed == "---" {
-			frontmatter = true
-			continue
-		}
-		if frontmatter {
-			frontmatter = trimmed != "---"
-			continue
-		}
 		if fence != "" {
 			if strings.HasPrefix(trimmed, fence) {
 				fence = ""
@@ -84,17 +76,18 @@ func relativeTarget(t string) (string, bool) {
 }
 
 // links passes when every relative link in every page resolves, relative to
-// the page, to an existing file inside the bundle at the head commit.
+// the page, to an existing file inside the bundle at the head commit. Only the
+// body after the frontmatter is scanned; a page whose frontmatter does not
+// parse (which fails the provenance rule) is scanned whole.
 func links(ctx context.Context, r Reader, repo, headSHA, bundle string, pages map[string][]byte) (Result, error) {
 	var details []string
 	exists := map[string]bool{}
-	names := make([]string, 0, len(pages))
-	for name := range pages {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, page := range names {
-		for _, raw := range linkTargets(pages[page]) {
+	for _, page := range slices.Sorted(maps.Keys(pages)) {
+		body := pages[page]
+		if _, b, err := provenance.Parse(body); err == nil {
+			body = b
+		}
+		for _, raw := range linkTargets(body) {
 			t, ok := relativeTarget(raw)
 			if !ok {
 				continue

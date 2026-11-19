@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	gateBase = "1111111111111111111111111111111111111111"
-	gateHead = "2222222222222222222222222222222222222222"
-	gatePlan = `{"version":1,"source":"acme/api","bundle":"product","from":"a","to":"b","initial":false,"changed_paths":[],
+	gateBase   = "1111111111111111111111111111111111111111"
+	gateHead   = "2222222222222222222222222222222222222222"
+	gateSource = "3333333333333333333333333333333333333333"
+	gatePlan   = `{"version":1,"source":"acme/api","bundle":"product","from":"a","to":"b","initial":false,"changed_paths":[],
 "pages":[{"path":"product/api.md","state":"update","type":"","source_paths":["api/x.go"]}],"unrouted":[],"excluded":[]}`
 )
 
@@ -28,7 +29,9 @@ func gateFixture(t *testing.T) (*githubtest.Fake, string) {
 	fake.SetRepo("acme/kb", "main", gateBase)
 	fake.SetFile("acme/kb", gateBase, ".kb/policy.yaml", "version: 1\nauto_merge:\n  types: [Service]\n  bundles: [product]\nlimits:\n  page_lines: 100\n  pr_lines: 100\n")
 	fake.SetFile("acme/kb", gateBase, ".kb/routing.yaml", "version: 1\nsources:\n  - repo: acme/api\n    bundle: product\n    routes:\n      - page: product/api.md\n        paths: [\"api/**\"]\n")
-	fake.SetFile("acme/kb", gateHead, "product/api.md", "# API\n")
+	fake.SetFile("acme/kb", gateHead, "product/api.md", "---\ntype: Service\nsource_repo: acme/api\nsource_sha: "+gateSource+
+		"\nsource_paths: [api/x.go]\nupdated_at: 2026-11-18T10:00:00Z\ngenerated_by: okf-operator/dev/m1\n---\n# API\n")
+	fake.SetCommit("acme/api", gateSource)
 	fake.SetPull("acme/kb", 7, githubtest.Pull{Head: gateHead, BaseRef: "main"})
 	fake.SetPullFiles("acme/kb", 7, []githubtest.PullFile{{Filename: "product/api.md", Status: "modified", Additions: 1, Deletions: 1}})
 
@@ -158,9 +161,9 @@ func TestGateRuntimeErrorsExit1(t *testing.T) {
 	}
 }
 
-// TestGateAppPermissions checks that every installation token gate requests
-// is one of the two narrowed scopes: the knowledge repo with pull requests,
-// or the plan's source repo with contents only.
+// TestGateAppPermissions checks that gate requests exactly two narrowed
+// installation tokens: the knowledge repo with pull requests, and the plan's
+// source repo with contents only.
 func TestGateAppPermissions(t *testing.T) {
 	fake, planFile := gateFixture(t)
 	keyFile, _ := githubtest.WriteKey(t)
@@ -177,12 +180,12 @@ func TestGateAppPermissions(t *testing.T) {
 		"permissions":  map[string]any{"contents": "read", "metadata": "read"},
 	}
 	reqs := fake.TokenRequests()
-	if len(reqs) == 0 || !reflect.DeepEqual(reqs[0].Body, kb) {
-		t.Fatalf("first token request = %v, want %v", reqs, kb)
+	if len(reqs) != 2 {
+		t.Fatalf("want 2 token requests, got %d: %v", len(reqs), reqs)
 	}
-	for i, r := range reqs[1:] {
-		if !reflect.DeepEqual(r.Body, src) {
-			t.Errorf("token request %d body = %v, want %v", i+1, r.Body, src)
+	for i, want := range []map[string]any{kb, src} {
+		if !reflect.DeepEqual(reqs[i].Body, want) {
+			t.Errorf("token request %d body = %v, want %v", i, reqs[i].Body, want)
 		}
 	}
 }

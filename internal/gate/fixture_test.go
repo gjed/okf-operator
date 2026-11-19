@@ -38,7 +38,12 @@ sources:
 `
 	apiPage = `---
 type: Service
-title: API
+title: "[not a link](frontmatter.md)"
+source_repo: acme/api
+source_sha: 3333333333333333333333333333333333333333
+source_paths: [api/x.go]
+updated_at: 2026-11-18T10:00:00Z
+generated_by: okf-operator/dev/m1
 ---
 # API
 

@@ -103,7 +103,7 @@ func TestSize(t *testing.T) {
 }
 
 func TestLinkTargets(t *testing.T) {
-	page := "---\ntitle: \"[not](a-link.md)\"\n---\n# T\n\n" +
+	page := "# T\n\n" +
 		"[a](a.md) ![img](img/x.png \"title\") [b](<b c.md>) [ref]\n" +
 		"`[code](code.md)` text\n" +
 		"```md\n[fenced](fenced.md)\n```\n" +

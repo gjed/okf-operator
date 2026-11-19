@@ -35,12 +35,16 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 	}
 
 	r := &Report{Version: Version, PR: pr.Number, HeadSHA: pr.HeadSHA, Rules: []Result{}}
-	r.Add(pending(RuleProvenance))
+	res, err := provenanceRule(ctx, d.Commits, p.Source, pages)
+	if err != nil {
+		return nil, err
+	}
+	r.Add(res)
 	r.Add(routedSet(pr.Files, p))
 	r.Add(pending(RuleAllowlist))
 	r.Add(changeShape(pr.Files))
 	r.Add(size(pr.Files, pol.Limits))
-	res, err := links(ctx, d.Reader, repo, pr.HeadSHA, p.Bundle, pages)
+	res, err = links(ctx, d.Reader, repo, pr.HeadSHA, p.Bundle, pages)
 	if err != nil {
 		return nil, err
 	}
