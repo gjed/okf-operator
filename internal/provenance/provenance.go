@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -71,6 +72,29 @@ func Parse(page []byte) (Fields, []byte, error) {
 		}
 	}
 	return f, body, nil
+}
+
+// Type returns the OKF concept `type` of page, trimmed, or "" when the key is
+// absent. It fails like Parse on a page without frontmatter or with a
+// malformed one, and when `type` is not a string or is repeated.
+func Type(page []byte) (string, error) {
+	fm, _, err := split(page)
+	if err != nil {
+		return "", err
+	}
+	m, err := mapping(fm)
+	if err != nil {
+		return "", err
+	}
+	v, err := lookup(m, "type")
+	if err != nil || v == nil {
+		return "", err
+	}
+	var t string
+	if v.Kind != yaml.ScalarNode || v.Tag != "!!str" || v.Decode(&t) != nil {
+		return "", errors.New("provenance: type is not a string")
+	}
+	return strings.TrimSpace(t), nil
 }
 
 // Stamp returns page with f written into its provenance keys. Existing
