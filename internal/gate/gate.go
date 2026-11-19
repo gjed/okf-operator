@@ -41,7 +41,10 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 	}
 	r.Add(res)
 	r.Add(routedSet(pr.Files, p))
-	r.Add(pending(RuleAllowlist))
+	if res, err = allowlist(ctx, d.Reader, repo, pr.BaseSHA, p.Bundle, pol, pages); err != nil {
+		return nil, err
+	}
+	r.Add(res)
 	r.Add(changeShape(pr.Files))
 	r.Add(size(pr.Files, pol.Limits))
 	res, err = links(ctx, d.Reader, repo, pr.HeadSHA, p.Bundle, pages)
@@ -51,12 +54,6 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 	r.Add(res)
 	record(ctx, repo, p, r)
 	return r, nil
-}
-
-// pending fails closed for a rule that needs internal/provenance, which lands
-// with the write command.
-func pending(name string) Result {
-	return newResult(name, []string{"not evaluated: needs internal/provenance"})
 }
 
 // headPages reads every changed Markdown page that still exists at the head

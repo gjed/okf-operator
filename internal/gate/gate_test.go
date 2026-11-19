@@ -48,10 +48,23 @@ func TestEvaluateReportsEveryRule(t *testing.T) {
 		t.Errorf("report = %+v", r)
 	}
 	for _, res := range r.Rules {
-		failing := res.Name == RuleSize || res.Name == RuleAllowlist
+		failing := res.Name == RuleSize
 		if res.Pass == failing {
 			t.Errorf("%s pass = %v, details %q", res.Name, res.Pass, res.Details)
 		}
+	}
+}
+
+func TestEvaluatePasses(t *testing.T) {
+	f := newFixture(t)
+	r, err := f.evaluate(context.Background(), t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Pass {
+		var out bytes.Buffer
+		_ = Encode(&out, r)
+		t.Fatalf("a conforming PR failed:\n%s", out.String())
 	}
 }
 

@@ -25,7 +25,7 @@
 
 - [x] 4.1 Rebase onto `origin/main` with `internal/provenance` from [#3](https://github.com/gjed/okf-operator/issues/3) merged, or stop and report, and verify `go build ./...` passes after the rebase
 - [x] 4.2 Implement the `provenance` rule with `internal/provenance` and the `CommitChecker`, and verify a table test with a passing case, a missing field, a foreign `source_repo`, an unknown SHA (404 or 422 "No commit found" fails the rule) and a 500 (fails the run)
-- [ ] 4.3 Implement the `allowlist` rule with the page `type` read at the base commit through `internal/provenance`, and verify a table test with a passing case, a disallowed type, a disallowed bundle, an empty allowlist and a changed `type`
+- [x] 4.3 Implement the `allowlist` rule with the page `type` read at the base commit through `internal/provenance`, and verify a table test with a passing case, a disallowed type, a disallowed bundle, an empty allowlist and a changed `type`
 
 ## 5. Evaluation and telemetry
 

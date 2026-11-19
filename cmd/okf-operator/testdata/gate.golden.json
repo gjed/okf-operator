@@ -22,7 +22,7 @@
       "name": "allowlist",
       "pass": false,
       "details": [
-        "not evaluated: needs internal/provenance"
+        "product/services/notes.md: not a page at base commit 3333333333333333333333333333333333333333, so it has no allowed type"
       ]
     },
     {
