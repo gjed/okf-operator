@@ -32,7 +32,7 @@ Out of scope: the LLM review ([#6](https://github.com/gjed/okf-operator/issues/6
 ## Impact
 
 - Depends on [#12](https://github.com/gjed/okf-operator/pull/12) (merged): `internal/plan` JSON v1, `internal/routing`, `internal/github`.
-- The provenance rule and the allowlist's page `type` lookup depend on `internal/provenance` from [#3](https://github.com/gjed/okf-operator/issues/3) (lane B1). Every other rule is built first. No second frontmatter parser is written.
+- The provenance rule and the allowlist's page `type` lookup depend on `internal/provenance` from [#3](https://github.com/gjed/okf-operator/issues/3) (lane B1). Every other rule is built first. No second frontmatter parser is written: `internal/provenance` gains an exported `Type` reader on top of its existing frontmatter split.
 - `internal/github/githubtest` gains fake endpoints for pull requests and pull request files. `internal/github` itself does not change.
 - One added line in `internal/cli/commands.go` and a `gate` section in `README.md`. Both overlap with B1 and are resolved by rebase.
 - `.kb/policy.yaml` becomes a public, versioned contract. The gate report JSON is versioned from v1.
