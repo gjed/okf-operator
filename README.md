@@ -119,6 +119,41 @@ okf-operator plan --source cli/cli --knowledge-repo acme/kb --knowledge-dir ./kb
 
 The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1 before any model call. See [Writing pages](docs/write.md) for the profile, templates, provenance and the report.
 
+### propose
+
+`propose` commits the pages a `write` report marks `changed` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
+
+Run the stages in this order, because a bot PR that is still open holds earlier page changes the default branch lacks:
+
+1. `plan` against a checkout of the knowledge repo.
+1. Check out the bot branch if a bot PR for the source is open, otherwise the default branch.
+1. `write` against that checkout.
+1. `propose` with the commit the checkout is at.
+
+```bash
+okf-operator plan --source acme/api --knowledge-repo acme/kb --knowledge-dir ./kb > plan.json
+
+branch=$(gh pr list -R acme/kb --head okf/acme/api --json headRefName --jq '.[0].headRefName // empty')
+git -C kb fetch origin && git -C kb checkout --detach "origin/${branch:-main}"
+
+okf-operator write --plan plan.json --knowledge-dir ./kb > report.json
+okf-operator propose --plan plan.json --report report.json \
+  --knowledge-repo acme/kb --knowledge-dir ./kb --knowledge-base "$(git -C kb rev-parse HEAD)"
+```
+
+| Flag                                 | Description                                                     |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `--plan file`                        | Plan JSON from `plan` (required)                                |
+| `--report file\|-`                   | Report JSON from `write`, `-` for stdin (required)              |
+| `--knowledge-repo owner/name`        | Knowledge repo the PR is opened in (required)                   |
+| `--knowledge-dir path`               | The checkout `write` ran against (required)                     |
+| `--knowledge-base sha`               | Full commit SHA the checkout is at (required)                   |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md) |
+
+Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed pages. Any mismatch exits 1 and changes nothing.
+
+An initial plan only writes the cursor. A report with no changed page opens no PR and still advances the cursor. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
+
 ### gate
 
 `gate` decides whether a knowledge PR may auto-merge. It reads the PR, its changed files and their contents through the GitHub API, loads `.kb/policy.yaml` and `.kb/routing.yaml` from the PR's base branch (never from the head), and checks the PR against the plan of the run that produced it. It prints a JSON report to stdout and writes nothing.

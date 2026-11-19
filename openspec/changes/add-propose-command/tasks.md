@@ -17,9 +17,9 @@
 
 ## 4. CLI
 
-- [ ] 4.1 Add `internal/cli/propose.go` (flags, two `Provider`s with inline `Access` sharing one `Secrets`, wiring, result on stdout) and register it in `commands.go`, and verify tests for: exit 2 on a missing flag and on a short `--knowledge-base`, `--report -` from stdin, plan/report mismatch → exit 1 with no GitHub request, App mode token requests carrying only the knowledge repo with `contents` and `pull_requests` write and only the source repo with `contents`, `pull_requests` and `metadata` read, for one owner and for two
-- [ ] 4.2 Add a secrets test that runs `propose` at debug level in App mode with a GitHub error reply echoing the installation token, and verify the tokens, the JWT and the PEM appear in none of stderr, spans or stdout
-- [ ] 4.3 Add the `propose` README usage section (plan → checkout → write → propose order) and the `propose` rows of the `docs/github-app.md` permissions table, and verify the markdown lint passes
+- [x] 4.1 Add `internal/cli/propose.go` (flags, two `Provider`s with inline `Access` sharing one `Secrets`, wiring, result on stdout) and register it in `commands.go`, and verify tests for: exit 2 on a missing flag and on a short `--knowledge-base`, `--report -` from stdin, plan/report mismatch → exit 1 with no GitHub request, App mode token requests carrying only the knowledge repo with `contents` and `pull_requests` write and only the source repo with `contents`, `pull_requests` and `metadata` read, for one owner and for two
+- [x] 4.2 Add a secrets test that runs `propose` at debug level in App mode with a GitHub error reply echoing the installation token, and verify the tokens, the JWT and the PEM appear in none of stderr, spans or stdout
+- [x] 4.3 Add the `propose` README usage section (plan → checkout → write → propose order) and the `propose` rows of the `docs/github-app.md` permissions table, and verify the markdown lint passes
 
 ## 5. Validation and archive
 

@@ -15,7 +15,7 @@ With neither, a command that calls GitHub exits 2 and names both options. Settin
 
 ## Personal token
 
-Any token that can read the source repo and the knowledge repo works. A fine-grained token needs read-only **Contents** and **Metadata** on both repos.
+Any token that can read the source repo and the knowledge repo works for `plan` and `write`. A fine-grained token needs read-only **Contents** and **Metadata** on both repos, plus read-only **Pull requests** on the source repo. `propose` also needs read and write **Contents** and **Pull requests** on the knowledge repo.
 
 ```bash
 export GITHUB_TOKEN=$(gh auth token)
@@ -32,16 +32,24 @@ export GITHUB_TOKEN=$(gh auth token)
 
 ### Permissions
 
-| Command | Repository permission | Access    | Repos                       |
-| ------- | --------------------- | --------- | --------------------------- |
-| `plan`  | Contents              | Read-only | source repo, knowledge repo |
-| `plan`  | Metadata              | Read-only | source repo, knowledge repo |
-| `write` | Contents              | Read-only | source repo                 |
-| `write` | Metadata              | Read-only | source repo                 |
-| `write` | Pull requests         | Read-only | source repo                 |
-| `gate`  | Contents              | Read-only | source repo, knowledge repo |
-| `gate`  | Metadata              | Read-only | source repo, knowledge repo |
-| `gate`  | Pull requests         | Read-only | knowledge repo              |
+| Command   | Repository permission | Access         | Repos                       |
+| --------- | --------------------- | -------------- | --------------------------- |
+| `plan`    | Contents              | Read-only      | source repo, knowledge repo |
+| `plan`    | Metadata              | Read-only      | source repo, knowledge repo |
+| `write`   | Contents              | Read-only      | source repo                 |
+| `write`   | Metadata              | Read-only      | source repo                 |
+| `write`   | Pull requests         | Read-only      | source repo                 |
+| `propose` | Contents              | Read and write | knowledge repo              |
+| `propose` | Pull requests         | Read and write | knowledge repo              |
+| `propose` | Metadata              | Read-only      | knowledge repo              |
+| `propose` | Contents              | Read-only      | source repo                 |
+| `propose` | Pull requests         | Read-only      | source repo                 |
+| `propose` | Metadata              | Read-only      | source repo                 |
+| `gate`    | Contents              | Read-only      | source repo, knowledge repo |
+| `gate`    | Metadata              | Read-only      | source repo, knowledge repo |
+| `gate`    | Pull requests         | Read-only      | knowledge repo              |
+
+`propose` mints one token per repo, even when both repos have the same owner, so the source repo never gets write access.
 
 Grant nothing else. Later commands document what they add.
 

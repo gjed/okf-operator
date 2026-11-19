@@ -6,5 +6,6 @@ var commands = []Command{
 	versionCommand,
 	planCommand,
 	writeCommand,
+	proposeCommand,
 	gateCommand,
 }
