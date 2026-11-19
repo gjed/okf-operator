@@ -151,6 +151,7 @@ func TestGateEndToEnd(t *testing.T) {
 	fake.SetRepo("acme/kb", "main", e2eGateBase)
 	fake.SetFile("acme/kb", e2eGateBase, ".kb/policy.yaml", e2ePolicy)
 	fake.SetFile("acme/kb", e2eGateBase, ".kb/routing.yaml", e2eRouting)
+	fake.SetFile("acme/kb", e2eGateBase, "product/services/api.md", e2eAPIPage)
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/api.md", e2eAPIPage)
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/gateway.md", "# Gateway\n")
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/notes.md", "# Notes\n")

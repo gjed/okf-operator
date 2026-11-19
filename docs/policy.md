@@ -28,7 +28,7 @@ A complete file is in [`examples/policy.yaml`](../examples/policy.yaml).
 | `limits.page_lines`  | yes      | Max changed lines (added plus removed) in one page.                                   |
 | `limits.pr_lines`    | yes      | Max changed lines (added plus removed) across the PR.                                 |
 
-A page passes the allowlist only when both its type and its bundle are listed. With `auto_merge` omitted, nothing auto-merges.
+A page passes the allowlist only when both its type and its bundle are listed. The type is read from the page on the base branch, and a PR that changes a page's `type` fails the rule. With `auto_merge` omitted, nothing auto-merges.
 
 Unknown keys fail loading, so a typo cannot silently widen or narrow the allowlist.
 
