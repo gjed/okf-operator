@@ -125,11 +125,16 @@ The `size` rule SHALL count, for each changed file, the added plus removed lines
 
 ### Requirement: Links rule
 
-The `links` rule SHALL pass only when every relative link in every changed page resolves, relative to the page, to an existing file inside the plan's bundle at the PR head. Links with a URL scheme, protocol-relative links and fragment-only links SHALL be ignored. A fragment or query on a relative link SHALL be dropped before resolving.
+The `links` rule SHALL pass only when every relative link in every changed page resolves, relative to the page (or to the repository root for a root-relative link such as `/product/x.md`), to an existing file inside the plan's bundle at the PR head. Links with a URL scheme, protocol-relative links and fragment-only links SHALL be ignored. A fragment or query on a relative link SHALL be dropped before resolving.
 
 #### Scenario: Broken link
 
 - **WHEN** a changed page links to `../missing.md` and that file does not exist at the head
+- **THEN** the rule fails and its details name the page and the link
+
+#### Scenario: Broken root-relative link
+
+- **WHEN** a changed page links to `/product/services/gone.md` and that file does not exist at the head
 - **THEN** the rule fails and its details name the page and the link
 
 #### Scenario: Link escapes the bundle

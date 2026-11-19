@@ -127,7 +127,8 @@ func TestRelativeTarget(t *testing.T) {
 		{"https://example.com", "", false},
 		{"mailto:a@b.c", "", false},
 		{"//cdn.example.com/x", "", false},
-		{"/root.md", "", false},
+		{"/root.md", "/root.md", true},
+		{"/root.md#x", "/root.md", true},
 		{"?q", "", false},
 	}
 	for _, tt := range tests {
@@ -148,6 +149,11 @@ func TestLinks(t *testing.T) {
 			[]string{`product/api.md: link "../product/missing.md" resolves to product/missing.md, which is not a file at the head`}},
 		{"escapes bundle", apiPage + "[out](../.kb/policy.yaml)\n",
 			[]string{`product/api.md: link "../.kb/policy.yaml" resolves to .kb/policy.yaml, outside bundle product`}},
+		{"root-relative resolves", apiPage + "[billing](/product/billing.md)\n", nil},
+		{"root-relative broken", apiPage + "[gone](/product/services/gone.md)\n",
+			[]string{`product/api.md: link "/product/services/gone.md" resolves to product/services/gone.md, which is not a file at the head`}},
+		{"root-relative outside bundle", apiPage + "[cfg](/.kb/policy.yaml)\n",
+			[]string{`product/api.md: link "/.kb/policy.yaml" resolves to .kb/policy.yaml, outside bundle product`}},
 		{"directory", apiPage + "[dir](.)\n",
 			[]string{`product/api.md: link "." resolves to product, outside bundle product`}},
 	}
