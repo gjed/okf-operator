@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -38,19 +37,6 @@ type AutoMerge struct {
 type Limits struct {
 	PageLines int `yaml:"page_lines"`
 	PRLines   int `yaml:"pr_lines"`
-}
-
-// Load reads and validates the policy at file.
-func Load(file string) (*Policy, error) {
-	data, err := os.ReadFile(file) //nolint:gosec // the path is an operator-supplied flag
-	if err != nil {
-		return nil, fmt.Errorf("policy: %w", err)
-	}
-	p, err := Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("policy %s: %w", file, err)
-	}
-	return p, nil
 }
 
 // Parse decodes and validates a policy. The version is checked before strict
