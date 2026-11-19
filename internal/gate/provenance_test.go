@@ -22,7 +22,10 @@ func TestProvenanceRule(t *testing.T) {
 		{"foreign source repo", strings.Replace(apiPage, "source_repo: acme/api", "source_repo: evil/repo", 1),
 			[]string{"product/api.md: source_repo evil/repo is not the plan's source acme/api"}},
 		{"unknown commit", strings.Replace(apiPage, sourceSHA, unknownSHA, 1),
-			[]string{"product/api.md: source_sha " + unknownSHA + " not found in acme/api"}},
+			[]string{"product/api.md: source_sha " + unknownSHA + " is not the plan's to " + sourceSHA,
+				"product/api.md: source_sha " + unknownSHA + " not found in acme/api"}},
+		{"existing commit that is not the plan's to", strings.Replace(apiPage, sourceSHA, headSHA, 1),
+			[]string{"product/api.md: source_sha " + headSHA + " is not the plan's to " + sourceSHA}},
 		{"short sha", strings.Replace(apiPage, sourceSHA, "3333333", 1),
 			[]string{`product/api.md: source_sha "3333333" is not a full 40-character commit SHA`}},
 		{"no frontmatter", "# API\n",
@@ -31,7 +34,7 @@ func TestProvenanceRule(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
-			res, err := provenanceRule(context.Background(), f.commits, srcRepo, map[string][]byte{"product/api.md": []byte(tt.page)})
+			res, err := provenanceRule(context.Background(), f.commits, srcRepo, sourceSHA, map[string][]byte{"product/api.md": []byte(tt.page)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +46,7 @@ func TestProvenanceRule(t *testing.T) {
 func TestProvenanceRuleLookupFailsRun(t *testing.T) {
 	f := newFixture(t)
 	f.fake.FailStatus["/repos/acme/api/commits/"+sourceSHA] = http.StatusInternalServerError
-	_, err := provenanceRule(context.Background(), f.commits, srcRepo, map[string][]byte{"product/api.md": []byte(apiPage)})
+	_, err := provenanceRule(context.Background(), f.commits, srcRepo, sourceSHA, map[string][]byte{"product/api.md": []byte(apiPage)})
 	if err == nil || !strings.Contains(err.Error(), "look up acme/api@"+sourceSHA) {
 		t.Fatalf("err = %v", err)
 	}

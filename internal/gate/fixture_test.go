@@ -74,6 +74,7 @@ func newFixture(t *testing.T) *fixture {
 	fake.SetFile(kbRepo, headSHA, "product/api.md", apiPage)
 	fake.SetFile(kbRepo, headSHA, "product/billing.md", "# Billing\n")
 	fake.SetCommit(srcRepo, sourceSHA)
+	fake.SetCommit(srcRepo, headSHA)
 
 	provider, err := github.NewProvider(github.Config{APIURL: fake.APIURL(), Token: "test-token"},
 		github.ReadContents(kbRepo, srcRepo), &github.Secrets{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -85,7 +86,7 @@ func newFixture(t *testing.T) *fixture {
 		reader:  GitHubReader{Clients: provider},
 		commits: GitHubCommits{Clients: provider},
 		plan: &plan.Plan{
-			Version: plan.Version, Source: srcRepo, Bundle: "product",
+			Version: plan.Version, Source: srcRepo, Bundle: "product", To: sourceSHA,
 			Pages: []plan.Page{{Path: "product/api.md", State: plan.StateUpdate, SourcePaths: []string{"api/x.go"}}},
 		},
 		files: []githubtest.PullFile{{Filename: "product/api.md", Status: "modified", Additions: 3, Deletions: 2}},

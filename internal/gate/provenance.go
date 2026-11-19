@@ -12,9 +12,10 @@ import (
 )
 
 // provenanceRule passes when every changed page carries all five provenance
-// fields, names the plan's source as source_repo, and its source_sha exists
-// there. An unknown commit fails the rule; a failed lookup fails the run.
-func provenanceRule(ctx context.Context, c CommitChecker, source string, pages map[string][]byte) (Result, error) {
+// fields, names the plan's source as source_repo, has the plan's to as
+// source_sha, and that commit exists in the source repo. An unknown commit
+// fails the rule; a failed lookup fails the run.
+func provenanceRule(ctx context.Context, c CommitChecker, source, to string, pages map[string][]byte) (Result, error) {
 	var details []string
 	exists := map[string]bool{}
 	for _, page := range slices.Sorted(maps.Keys(pages)) {
@@ -37,6 +38,9 @@ func provenanceRule(ctx context.Context, c CommitChecker, source string, pages m
 		if !cursor.ValidSHA(f.SourceSHA) {
 			details = append(details, fmt.Sprintf("%s: source_sha %q is not a full 40-character commit SHA", page, f.SourceSHA))
 			continue
+		}
+		if f.SourceSHA != to {
+			details = append(details, fmt.Sprintf("%s: source_sha %s is not the plan's to %s", page, f.SourceSHA, to))
 		}
 		ok, seen := exists[f.SourceSHA]
 		if !seen {

@@ -70,7 +70,7 @@ func TestCommitExists(t *testing.T) {
 	if ok, err := f.commits.CommitExists(ctx, srcRepo, sourceSHA); err != nil || !ok {
 		t.Fatalf("known commit: ok %v err %v", ok, err)
 	}
-	if ok, err := f.commits.CommitExists(ctx, srcRepo, headSHA); err != nil || ok {
+	if ok, err := f.commits.CommitExists(ctx, srcRepo, strings.Repeat("9", 40)); err != nil || ok {
 		t.Errorf("unknown commit: ok %v err %v", ok, err)
 	}
 	f.fake.FailStatus["/repos/acme/api/commits/"+sourceSHA] = http.StatusInternalServerError
