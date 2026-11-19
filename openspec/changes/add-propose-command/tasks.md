@@ -2,7 +2,7 @@
 
 ## 1. Test fake
 
-- [ ] 1.1 Add to `internal/github/githubtest` the endpoints `propose` calls: `POST /git/blobs`, `POST /git/trees`, `GET /git/trees/{sha}?recursive=1`, `POST /git/commits`, `GET /git/commits/{sha}`, `GET /git/ref/{ref}`, `POST /git/refs`, `PATCH /git/refs/{ref}` (fast-forward check unless `force`), `GET`/`POST /pulls`, `PATCH /pulls/{n}`, `PUT /contents/{path}` (409 on a stale `sha`, 422 on an existing file without `sha`), backed by an in-memory object store; and verify `go test ./internal/github/...`
+- [x] 1.1 Add to `internal/github/githubtest` the endpoints `propose` calls: `POST /git/blobs`, `POST /git/trees`, `GET /git/trees/{sha}?recursive=1`, `POST /git/commits`, `GET /git/commits/{sha}`, `GET /git/ref/{ref}`, `POST /git/refs`, `PATCH /git/refs/{ref}` (fast-forward check unless `force`), `GET`/`POST /pulls`, `PATCH /pulls/{n}`, `PUT /contents/{path}` (409 on a stale `sha`, 422 on an existing file without `sha`), backed by an in-memory object store; and verify `go test ./internal/github/...`
 
 ## 2. Cursor writer
 

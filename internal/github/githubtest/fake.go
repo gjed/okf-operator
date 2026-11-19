@@ -3,7 +3,6 @@
 package githubtest
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -30,18 +29,29 @@ type Fake struct {
 	InstallationToken string
 
 	// FailStatus makes requests to a URL path answer with that status.
+	// A key "METHOD /path" matches only that method.
 	FailStatus map[string]int
 
+	// EchoAuth makes FailStatus answers quote the request's Authorization
+	// header, like a misbehaving proxy, to test redaction.
+	EchoAuth bool
+
+	// TruncateTrees makes tree responses report truncated: true.
+	TruncateTrees bool
+
 	mu            sync.Mutex
+	hook          func(r *http.Request)
 	tokenRequests []TokenRequest
 	auths         []string
-	files         map[string]map[string]string // "owner/name@ref" -> path -> content
-	repos         map[string][2]string         // "owner/name" -> default branch, head SHA
-	compares      map[string][]byte            // "owner/name base...head" -> body
-	commitPulls   map[string][]byte            // "owner/name sha" -> body
-	commits       map[string]bool              // "owner/name@sha" -> exists
-	pulls         map[string]Pull              // "owner/name#n" -> pull request
-	pullFiles     map[string][]PullFile        // "owner/name#n" -> changed files
+	requests      []string
+	git           map[string]*gitRepo // "owner/name" -> objects, refs, pulls
+	pullSeq       int
+	repos         map[string][2]string  // "owner/name" -> default branch, head SHA
+	compares      map[string][]byte     // "owner/name base...head" -> body
+	commitPulls   map[string][]byte     // "owner/name sha" -> body
+	commits       map[string]bool       // "owner/name@sha" -> exists
+	pulls         map[string]Pull       // "owner/name#n" -> pull request
+	pullFiles     map[string][]PullFile // "owner/name#n" -> changed files
 }
 
 // Pull is the part of a pull request the fake serves.
@@ -106,17 +116,6 @@ func (f *Fake) SetCommitPulls(repo, sha string, body []byte) {
 	f.commitPulls[repo+" "+sha] = body
 }
 
-// SetFile stores a file on a branch of a repo. A branch exists once it has a file.
-func (f *Fake) SetFile(repo, ref, path, content string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	key := repo + "@" + ref
-	if f.files[key] == nil {
-		f.files[key] = map[string]string{}
-	}
-	f.files[key][path] = content
-}
-
 // New starts a fake and closes it when the test ends. Its URL ends in "/",
 // ready for GITHUB_API_URL.
 func New(t testing.TB) *Fake {
@@ -124,7 +123,7 @@ func New(t testing.TB) *Fake {
 	f := &Fake{
 		InstallationToken: "ghs_fakeInstallationToken0123456789",
 		FailStatus:        map[string]int{},
-		files:             map[string]map[string]string{},
+		git:               map[string]*gitRepo{},
 		repos:             map[string][2]string{},
 		compares:          map[string][]byte{},
 		commitPulls:       map[string][]byte{},
@@ -136,6 +135,18 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
 	mux.HandleFunc("POST /app/installations/{id}/access_tokens", f.accessToken)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/contents/{path...}", f.contents)
+	mux.HandleFunc("PUT /repos/{owner}/{repo}/contents/{path...}", f.putContents)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/git/blobs", f.createBlob)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/git/trees", f.createTree)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/git/trees/{sha}", f.getTree)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/git/commits", f.createCommit)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/git/commits/{sha}", f.getCommit)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/git/ref/{ref...}", f.getRef)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/git/refs", f.createRef)
+	mux.HandleFunc("PATCH /repos/{owner}/{repo}/git/refs/{ref...}", f.updateRef)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls", f.listPulls)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/pulls", f.createPull)
+	mux.HandleFunc("PATCH /repos/{owner}/{repo}/pulls/{number}", f.editPull)
 	mux.HandleFunc("GET /repos/{owner}/{repo}", f.repo)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{ref}", f.commit)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/compare/{basehead}", f.compare)
@@ -164,14 +175,54 @@ func (f *Fake) Auths() []string {
 	return append([]string(nil), f.auths...)
 }
 
+// SetHook makes hook run before each request is served, outside the lock,
+// so it may call the fake's setters.
+func (f *Fake) SetHook(hook func(r *http.Request)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.hook = hook
+}
+
+// Requests returns "METHOD /path" of every request, in order.
+func (f *Fake) Requests() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.requests...)
+}
+
+// Writes returns the requests that are not GET, in order.
+func (f *Fake) Writes() []string {
+	var out []string
+	for _, r := range f.Requests() {
+		if !strings.HasPrefix(r, "GET ") {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 func (f *Fake) record(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
+		hook := f.hook
+		f.mu.Unlock()
+		if hook != nil {
+			hook(r)
+		}
+		f.mu.Lock()
 		f.auths = append(f.auths, r.Header.Get("Authorization"))
-		status := f.FailStatus[r.URL.Path]
+		f.requests = append(f.requests, r.Method+" "+r.URL.Path)
+		status := f.FailStatus[r.Method+" "+r.URL.Path]
+		if status == 0 {
+			status = f.FailStatus[r.URL.Path]
+		}
 		f.mu.Unlock()
 		if status != 0 {
-			WriteJSON(w, status, map[string]string{"message": http.StatusText(status)})
+			msg := http.StatusText(status)
+			if f.EchoAuth {
+				msg += " (auth: " + r.Header.Get("Authorization") + ")"
+			}
+			WriteJSON(w, status, map[string]string{"message": msg})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -204,26 +255,6 @@ func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {
 		"token":      f.InstallationToken,
 		"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 	})
-}
-
-func (f *Fake) contents(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	branch, ok := f.files[r.PathValue("owner")+"/"+r.PathValue("repo")+"@"+r.URL.Query().Get("ref")]
-	content, found := branch[r.PathValue("path")]
-	f.mu.Unlock()
-	switch {
-	case !ok:
-		WriteJSON(w, http.StatusNotFound, map[string]string{"message": "No commit found for the ref " + r.URL.Query().Get("ref")})
-	case !found:
-		NotFound(w)
-	default:
-		WriteJSON(w, http.StatusOK, map[string]any{
-			"type":     "file",
-			"encoding": "base64",
-			"path":     r.PathValue("path"),
-			"content":  base64.StdEncoding.EncodeToString([]byte(content)),
-		})
-	}
 }
 
 func (f *Fake) lookupRepo(r *http.Request) ([2]string, bool) {
