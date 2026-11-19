@@ -56,7 +56,7 @@ type GitHubReader struct {
 
 // PullRequest reads the PR, resolves its base branch tip and lists its files.
 // A file list shorter than the PR's changed_files count (the API stops at
-// 3000 files) fails closed.
+// 3000 files) fails closed, and so does a head that moves during the listing.
 func (g GitHubReader) PullRequest(ctx context.Context, repo string, n int) (*PR, error) {
 	owner, name, _ := strings.Cut(repo, "/")
 	c, err := g.Clients.ClientFor(ctx, owner)
@@ -96,6 +96,15 @@ func (g GitHubReader) PullRequest(ctx context.Context, repo string, n int) (*PR,
 	if len(out.Files) != pr.GetChangedFiles() {
 		return nil, fmt.Errorf("%s#%d changes %d files but the API listed %d: the file list is incomplete",
 			repo, n, pr.GetChangedFiles(), len(out.Files))
+	}
+	// The files API has no ref parameter, so re-read the head: a push during
+	// the listing would mix two heads in one report.
+	again, _, err := c.PullRequests.Get(ctx, owner, name, n)
+	if err != nil {
+		return nil, fmt.Errorf("get %s#%d: %w", repo, n, err)
+	}
+	if again.GetHead().GetSHA() != out.HeadSHA {
+		return nil, fmt.Errorf("%s#%d head moved from %s to %s while gate read it", repo, n, out.HeadSHA, again.GetHead().GetSHA())
 	}
 	return out, nil
 }

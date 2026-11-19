@@ -37,6 +37,39 @@ func TestPullRequestIncompleteFileList(t *testing.T) {
 	}
 }
 
+// moveHead is a transport that pushes a new head to the fake once the PR's
+// file list has been served.
+type moveHead struct {
+	fake *githubtest.Fake
+}
+
+func (m moveHead) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := http.DefaultTransport.RoundTrip(r)
+	if err == nil && strings.HasSuffix(r.URL.Path, "/pulls/7/files") {
+		m.fake.SetPull(kbRepo, prNumber, githubtest.Pull{Head: sourceSHA, BaseRef: "main"})
+	}
+	return resp, err
+}
+
+type staticClients struct{ c *gogithub.Client }
+
+func (s staticClients) ClientFor(context.Context, string) (*gogithub.Client, error) { return s.c, nil }
+
+func TestPullRequestHeadMoved(t *testing.T) {
+	f := newFixture(t)
+	f.fake.SetPull(kbRepo, prNumber, githubtest.Pull{Head: headSHA, BaseRef: "main"})
+	f.fake.SetPullFiles(kbRepo, prNumber, f.files)
+	u := f.fake.APIURL()
+	c, err := gogithub.NewClient(gogithub.WithHTTPClient(&http.Client{Transport: moveHead{f.fake}}), gogithub.WithURLs(&u, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = GitHubReader{Clients: staticClients{c}}.PullRequest(context.Background(), kbRepo, prNumber)
+	if err == nil || !strings.Contains(err.Error(), "head moved from "+headSHA+" to "+sourceSHA) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestPullRequestErrors(t *testing.T) {
 	f := newFixture(t)
 	if _, err := f.reader.PullRequest(context.Background(), kbRepo, 99); err == nil {
