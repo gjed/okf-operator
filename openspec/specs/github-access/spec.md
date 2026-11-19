@@ -34,6 +34,11 @@ In App mode, the CLI SHALL mint an installation token for each repository owner 
 - **WHEN** `write` runs in App mode
 - **THEN** it requests read-only `contents`, `metadata` and `pull_requests` for the source repo only, and no token for the knowledge repo
 
+#### Scenario: Propose permissions
+
+- **WHEN** `propose` runs in App mode
+- **THEN** it requests one token for the knowledge repo only, with `contents` and `pull_requests` write and `metadata` read, and one token for the source repo only, with `contents`, `pull_requests` and `metadata` read, even when both repos have the same owner
+
 #### Scenario: Gate permissions
 
 - **WHEN** `gate` runs in App mode
