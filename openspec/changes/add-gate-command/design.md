@@ -68,10 +68,10 @@ The source repo is the plan's `source`. A page whose `source_repo` is a differen
 
 - `provenance`: parses the page at the head with `internal/provenance`, then `GetCommitSHA1(source_repo, source_sha)`. Each unique SHA is looked up once. GitHub answers an unknown 40-hex SHA with 422 "No commit found for SHA", not 404 (checked against `cli/cli`), so both fail the rule. Any other status fails the run.
 - `routed_set`: set membership against `plan.pages[].path`.
-- `allowlist`: the bundle is checked once. The page `type` is read from the page at the base commit with the `internal/provenance` frontmatter reader (or the pinned `skosovsky/okf` parser it wraps, whichever B1 exposes). A head `type` different from the base `type` fails the rule.
+- `allowlist`: the bundle is checked once. The page `type` is read from the page at the base commit with `provenance.Type`, a small reader added to `internal/provenance` on top of its existing frontmatter split, because B1 exposes only the five provenance keys and `skosovsky/okf` is not linked (unlicensed). A head `type` different from the base `type`, a missing type and a page absent at the base all fail the rule.
 - `change_shape`: files API `status` must be `modified`. Any path under `.kb/` fails, whatever its status.
 - `size`: per file `additions + deletions` from the files API, and their sum.
-- `links`: extracted with a standard-library scan of the page body, after the frontmatter, for inline links `[text](target)`, images `![alt](target)` and reference definitions `[id]: target`, skipping fenced and inline code. Each unique target is resolved with `path.Join(path.Dir(page), target)`, must stay under `<bundle>/`, and is checked with the contents API at `head.sha` (404 fails the rule, other errors fail the run).
+- `links`: extracted with a standard-library scan of the page body after the frontmatter (split by `provenance.Parse`; a page whose frontmatter fails to parse is scanned whole and already fails `provenance`), for inline links `[text](target)`, images `![alt](target)` and reference definitions `[id]: target`, skipping fenced and inline code. Each unique target is resolved with `path.Join(path.Dir(page), target)`, must stay under `<bundle>/`, and is checked with the contents API at `head.sha` (404 fails the rule, other errors fail the run).
 - `SIMPLIFIED:` link extraction is a regex scan, not a CommonMark parser. It misses autolinks and HTML `<a href>`, and can misread exotic nesting. Upgrade path: `goldmark`'s AST walker behind the same function, if the pilot shows misses.
 - A rule that cannot be evaluated because the page failed to parse reports that page in its details and fails. It does not abort the run.
 
@@ -127,7 +127,7 @@ Pick: **A**. The specs are written for A.
 
 ## Risks / Trade-offs
 
-- [The allowlist rule also depends on B1, not only provenance] → Both are built last, after B1 lands. If B1's API does not expose `type`, the `skosovsky/okf` parser B1 pins is used directly, never a new parser.
+- \[`provenance.Type` extends B1's package\] → It reuses the package's split and mapping helpers, so there is still one frontmatter reader for gate. `internal/write` keeps its own private splitter; consolidating it is out of scope.
 - [A force-push to the PR during the run] → Every head read uses the recorded `head_sha`, so the verdict describes one commit. The caller must merge with that SHA (`sha` on the merge API) to avoid merging a later head.
 - \[Base branch moves between `gate` and merge\] → The verdict holds for the recorded base commit. The controller re-runs `gate` when it requeues.
 - \[`policy.yaml` v1 becomes a public contract\] → Explicit `version` and strict decoding, as with `routing.yaml`.
