@@ -108,7 +108,7 @@ func TestPlanEndToEnd(t *testing.T) {
 const (
 	e2eGateBase = "3333333333333333333333333333333333333333"
 	e2eGateHead = "4444444444444444444444444444444444444444"
-	e2eGatePlan = `{"version":1,"source":"acme/api","bundle":"product","from":"` + e2eCursor + `","to":"` + e2eHead + `","initial":false,
+	e2eGatePlan = `{"version":1,"source":"acme/api","bundle":"product","from":"` + e2eCursor + `","to":"` + e2eSource + `","initial":false,
 "changed_paths":[{"path":"api/openapi.yaml","status":"modified","previous_path":""}],
 "pages":[{"path":"product/services/api.md","state":"update","type":"","source_paths":["api/openapi.yaml"]}],
 "unrouted":[],"excluded":[]}`

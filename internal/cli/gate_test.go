@@ -17,7 +17,7 @@ const (
 	gateBase   = "1111111111111111111111111111111111111111"
 	gateHead   = "2222222222222222222222222222222222222222"
 	gateSource = "3333333333333333333333333333333333333333"
-	gatePlan   = `{"version":1,"source":"acme/api","bundle":"product","from":"a","to":"b","initial":false,"changed_paths":[],
+	gatePlan   = `{"version":1,"source":"acme/api","bundle":"product","from":"a","to":"3333333333333333333333333333333333333333","initial":false,"changed_paths":[],
 "pages":[{"path":"product/api.md","state":"update","type":"","source_paths":["api/x.go"]}],"unrouted":[],"excluded":[]}`
 )
 

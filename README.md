@@ -147,14 +147,14 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
 }
 ```
 
-| Rule           | Passes when                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| `provenance`   | Every changed page has all five provenance fields and its `source_sha` exists in the plan's source repo |
-| `routed_set`   | Every changed file is one of the plan's pages                                                           |
-| `allowlist`    | The page `type` and the plan's bundle are on the policy's auto-merge allowlist                          |
-| `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`       |
-| `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)         |
-| `links`        | Every relative link in a changed page resolves to an existing file inside the bundle at the PR head     |
+| Rule           | Passes when                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `provenance`   | Every changed page has all five provenance fields and its `source_sha` is the plan's `to` and exists in the plan's source repo |
+| `routed_set`   | Every changed file is one of the plan's pages                                                                                  |
+| `allowlist`    | The page `type` and the plan's bundle are on the policy's auto-merge allowlist                                                 |
+| `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`                              |
+| `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)                                |
+| `links`        | Every relative link in a changed page resolves to an existing file inside the bundle at the PR head                            |
 
 `pass` is `true` only when every rule passes. A failed gate still exits 0, so callers branch on `pass`. Exit 1 means the evaluation could not finish (an API failure, a missing or invalid policy, a plan that does not match the base routing map) and prints no report.
 

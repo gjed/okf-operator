@@ -35,7 +35,7 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 	}
 
 	r := &Report{Version: Version, PR: pr.Number, HeadSHA: pr.HeadSHA, Rules: []Result{}}
-	res, err := provenanceRule(ctx, d.Commits, p.Source, pages)
+	res, err := provenanceRule(ctx, d.Commits, p.Source, p.To, pages)
 	if err != nil {
 		return nil, err
 	}
