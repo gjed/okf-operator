@@ -1,5 +1,5 @@
-// Package cursor reads the last processed commit of each source repo from the
-// kb-state branch of the knowledge repo. Writing cursors belongs to propose.
+// Package cursor reads and advances the last processed commit of each source
+// repo on the kb-state branch of the knowledge repo. Only propose writes.
 package cursor
 
 import (
