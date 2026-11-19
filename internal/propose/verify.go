@@ -44,7 +44,7 @@ func Verify(dir string, tree map[string]Entry, changed map[string]bool) (map[str
 			problems = append(problems, path+": changed page is not in the base commit")
 		case changed[path] && l.sha == base.SHA:
 			problems = append(problems, path+": reported changed but identical to the base commit")
-		case changed[path] && l.mode == modeSymlink:
+		case changed[path] && (l.mode == modeSymlink || base.Mode == modeSymlink):
 			problems = append(problems, path+": changed page is a symlink")
 		case changed[path]:
 			files[path] = File{Mode: base.Mode, Content: l.content}

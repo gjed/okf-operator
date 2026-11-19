@@ -254,6 +254,12 @@ func TestRunRejectsContractViolations(t *testing.T) {
 			writeFile(t, f.dir, "docs/extra.md", "x")
 		}, "docs/extra.md: not in the base commit"},
 		{"report to mismatch", func(_ *testing.T, f *fixture) { f.rep.To = commit1 }, "disagree on to"},
+		{"changed page is a symlink in the base", func(_ *testing.T, f *fixture) {
+			// write replaces a symlinked page with a regular file; committing it
+			// with the base mode would turn the page into a link to its text.
+			f.fake.SetSymlink(testKB, "main", "docs/a.md", "b.md")
+			f.base = f.fake.Ref(testKB, "main")
+		}, "docs/a.md: changed page is a symlink"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -186,6 +186,17 @@ func (f *Fake) SetFile(repo, ref, path, content string) {
 	g.commitFiles(ref, files, "set "+path)
 }
 
+// SetSymlink stores a symlink to target on a branch of a repo, committed on
+// top of the branch like SetFile.
+func (f *Fake) SetSymlink(repo, ref, path, target string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	g := f.gitRepo(repo)
+	files := g.headFiles(ref)
+	files[path] = entry{mode: modeSymlink, sha: g.putBlob([]byte(target))}
+	g.commitFiles(ref, files, "link "+path)
+}
+
 // Ref returns the commit SHA a branch points at, or "" if it does not exist.
 func (f *Fake) Ref(repo, branch string) string {
 	f.mu.Lock()
