@@ -36,12 +36,17 @@ Defines `okf-operator gate`: deterministic rules that decide whether a knowledge
 
 ### Requirement: Contents read at the head commit
 
-Changed page contents SHALL be read at the PR's head SHA, recorded once at the start of the run, so a push during the run cannot mix two heads in one verdict.
+Changed page contents SHALL be read at the PR's head SHA, recorded once at the start of the run, so a push during the run cannot mix two heads in one verdict. The changed file list has no ref parameter, so the PR SHALL be re-read after listing it, and a head that moved SHALL fail the run.
 
 #### Scenario: Head SHA in the report
 
 - **WHEN** `gate` evaluates a PR
 - **THEN** the report's `head_sha` is the commit every head file was read at
+
+#### Scenario: Push during the listing
+
+- **WHEN** the PR head changes between reading the PR and listing its files
+- **THEN** `gate` exits 1 and prints no report
 
 ### Requirement: Provenance rule
 
