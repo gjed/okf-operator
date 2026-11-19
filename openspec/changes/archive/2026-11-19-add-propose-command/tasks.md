@@ -23,8 +23,8 @@
 
 ## 5. Validation and archive
 
-- [ ] 5.1 Verify `go build ./... && go vet ./... && go test -race ./...`, `make lint`, `pre-commit run --all-files` and `openspec validate --all --strict` pass
-- [ ] 5.2 Verify `docker build .` and `docker run --rm <image> propose -h` print the `propose` usage from the distroless image
-- [ ] 5.3 After approval, create a scratch knowledge repo under the maintainer's account, run `plan > plan.json`, `write --plan plan.json > report.json` and `propose` against it, record the opened PR URL and the `kb-state` cursor, then delete the repo after approval
-- [ ] 5.4 After approval, comment on [#5](https://github.com/gjed/okf-operator/issues/5) and [#8](https://github.com/gjed/okf-operator/issues/8) that recording declined changes moves to #8, and verify with `gh issue view`
-- [ ] 5.5 Run `openspec archive add-propose-command -y`, fix MD022 in the generated specs if flagged, and verify `openspec validate --all --strict` and the markdown lint pass
+- [x] 5.1 Verify `go build ./... && go vet ./... && go test -race ./...`, `make lint`, `pre-commit run --all-files` and `openspec validate --all --strict` pass
+- [x] 5.2 Verify `docker build .` and `docker run --rm <image> propose -h` print the `propose` usage from the distroless image
+- [x] 5.3 After approval, create a scratch knowledge repo under the maintainer's account, run `plan > plan.json`, `write --plan plan.json > report.json` and `propose` against it, record the opened PR URL and the `kb-state` cursor, then delete the repo after approval
+- [x] 5.4 After approval, comment on [#5](https://github.com/gjed/okf-operator/issues/5) and [#8](https://github.com/gjed/okf-operator/issues/8) that recording declined changes moves to #8, and verify with `gh issue view`
+- [x] 5.5 Run `openspec archive add-propose-command -y`, fix MD022 in the generated specs if flagged, and verify `openspec validate --all --strict` and the markdown lint pass
