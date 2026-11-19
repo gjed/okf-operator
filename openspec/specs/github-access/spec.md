@@ -22,7 +22,7 @@ The CLI SHALL authenticate with a GitHub App when `--app-id` (or `OKF_GITHUB_APP
 
 ### Requirement: Short-lived installation tokens
 
-In App mode, the CLI SHALL mint an installation token for each repository owner it accesses at run time and SHALL NOT persist it. Installation tokens SHALL be requested with only the repositories and permissions the command needs.
+In App mode, the CLI SHALL mint an installation token for each repository owner and permission set it accesses at run time and SHALL NOT persist it. Installation tokens SHALL be requested with only the repositories and permissions the command needs.
 
 #### Scenario: Plan permissions
 
@@ -33,6 +33,11 @@ In App mode, the CLI SHALL mint an installation token for each repository owner 
 
 - **WHEN** `write` runs in App mode
 - **THEN** it requests read-only `contents`, `metadata` and `pull_requests` for the source repo only, and no token for the knowledge repo
+
+#### Scenario: Gate permissions
+
+- **WHEN** `gate` runs in App mode
+- **THEN** it requests one token for the knowledge repo with read-only `contents`, `metadata` and `pull_requests`, and one token for the plan's source repo with read-only `contents` and `metadata`, and nothing else
 
 ### Requirement: Private key never logged
 
