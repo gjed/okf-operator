@@ -226,3 +226,29 @@ func TestStampKeepsBodyByteIdentical(t *testing.T) {
 		t.Errorf("output does not open with ---:\n%q", out)
 	}
 }
+
+func TestType(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, page, want string
+		wantErr          bool
+	}{
+		{name: "string type", page: "---\ntype: Service\n---\nbody\n", want: "Service"},
+		{name: "trimmed", page: "---\ntype: \" Service \"\n---\nbody\n", want: "Service"},
+		{name: "absent", page: "---\ntitle: x\n---\nbody\n", want: ""},
+		{name: "empty frontmatter", page: "---\n---\nbody\n", want: ""},
+		{name: "not a string", page: "---\ntype: 3\n---\nbody\n", wantErr: true},
+		{name: "a list", page: "---\ntype: [a]\n---\nbody\n", wantErr: true},
+		{name: "repeated", page: "---\ntype: a\ntype: b\n---\nbody\n", wantErr: true},
+		{name: "no frontmatter", page: "# Title\n", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := Type([]byte(tc.page))
+			if (err != nil) != tc.wantErr || got != tc.want {
+				t.Fatalf("Type = %q, %v; want %q, error %v", got, err, tc.want, tc.wantErr)
+			}
+		})
+	}
+}
