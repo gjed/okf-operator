@@ -48,7 +48,7 @@ func TestEvaluateReportsEveryRule(t *testing.T) {
 		t.Errorf("report = %+v", r)
 	}
 	for _, res := range r.Rules {
-		failing := res.Name == RuleSize || res.Name == RuleProvenance || res.Name == RuleAllowlist
+		failing := res.Name == RuleSize || res.Name == RuleAllowlist
 		if res.Pass == failing {
 			t.Errorf("%s pass = %v, details %q", res.Name, res.Pass, res.Details)
 		}

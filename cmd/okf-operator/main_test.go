@@ -120,7 +120,16 @@ limits:
   page_lines: 50
   pr_lines: 80
 `
-	e2eAPIPage = `# API
+	e2eSource  = "5555555555555555555555555555555555555555"
+	e2eAPIPage = `---
+type: Service
+source_repo: acme/api
+source_sha: ` + e2eSource + `
+source_paths: [api/openapi.yaml]
+updated_at: 2026-11-18T10:00:00Z
+generated_by: okf-operator/dev/m1
+---
+# API
 
 Served by the [gateway](gateway.md) and billed through [billing](billing.md).
 `
@@ -145,6 +154,7 @@ func TestGateEndToEnd(t *testing.T) {
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/api.md", e2eAPIPage)
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/gateway.md", "# Gateway\n")
 	fake.SetFile("acme/kb", e2eGateHead, "product/services/notes.md", "# Notes\n")
+	fake.SetCommit("acme/api", e2eSource)
 	fake.SetPull("acme/kb", 12, githubtest.Pull{Head: e2eGateHead, BaseRef: "main"})
 	fake.SetPullFiles("acme/kb", 12, []githubtest.PullFile{
 		{Filename: "product/services/api.md", Status: "modified", Additions: 40, Deletions: 20},

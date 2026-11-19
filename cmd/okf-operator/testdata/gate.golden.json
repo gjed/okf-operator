@@ -8,7 +8,7 @@
       "name": "provenance",
       "pass": false,
       "details": [
-        "not evaluated: needs internal/provenance"
+        "product/services/notes.md: provenance: no frontmatter: page does not start with \"---\\n\""
       ]
     },
     {
