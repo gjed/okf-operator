@@ -32,12 +32,17 @@ For a page with `state: create`, the reply SHALL be the complete new page. `NO_C
 
 ### Requirement: Create targets a new path
 
-A page with `state: create` whose path exists under `--knowledge-dir`, as any file type, SHALL exit 1 before any GitHub or model call.
+A page with `state: create` whose path exists under `--knowledge-dir`, as any file type, SHALL exit 1 before any GitHub or model call. `plan` and `write` SHALL therefore run against the same checkout: the open bot PR's branch for the source, otherwise the default branch, so a page created in an open bot PR is planned as `update`.
 
 #### Scenario: Create path already exists
 
 - **WHEN** the plan has a page with `state: create` whose path exists under `--knowledge-dir`
 - **THEN** `write` exits 1 naming the page, and the model endpoint receives no request
+
+#### Scenario: Page created in an open bot PR
+
+- **WHEN** a bot PR that created a page is open, and `plan` and `write` both run against its branch
+- **THEN** the plan lists the page as `update` and `write` updates it
 
 ### Requirement: Missing pages are dropped
 
