@@ -128,6 +128,18 @@ func (kb knowledge) references(typ string) []reference {
 	return refs[:min(len(refs), maxReferences)]
 }
 
+// sameTypeReferences returns up to two reference pages of type typ, in path
+// order.
+func (kb knowledge) sameTypeReferences(typ string) []reference {
+	var refs []reference
+	for _, p := range kb.pages {
+		if len(refs) < maxReferences && p.typ == typ {
+			refs = append(refs, reference{Path: p.path, Content: p.content})
+		}
+	}
+	return refs
+}
+
 // pageType returns the frontmatter `type` of page, or "" when the page has no
 // valid frontmatter or no string type.
 func pageType(page []byte) string {

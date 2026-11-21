@@ -97,7 +97,7 @@ GITHUB_TOKEN=$(gh auth token) okf-operator plan \
 
 ### write
 
-`write` reads a plan, asks an OpenAI-compatible model for the updated content of each planned page, stamps provenance and writes the changed pages into the knowledge checkout. It prints a JSON report to stdout and never commits or pushes.
+`write` reads a plan, asks an OpenAI-compatible model for the updated content of each planned page, or for a new page from its template when the plan says `create`, stamps provenance and writes the changed and created pages into the knowledge checkout. It prints a JSON report to stdout and never commits or pushes.
 
 ```bash
 export GITHUB_TOKEN=$(gh auth token)
@@ -107,15 +107,15 @@ okf-operator plan --source cli/cli --knowledge-repo acme/kb --knowledge-dir ./kb
   okf-operator write --plan - --knowledge-dir ./kb
 ```
 
-| Flag                                 | Description                                                        |
-| ------------------------------------ | ------------------------------------------------------------------ |
-| `--plan file\|-`                     | Plan JSON from `plan`, `-` for stdin (required)                    |
-| `--knowledge-dir path`               | Knowledge repo checkout; changed pages are written here (required) |
-| `--model-base-url url`               | Model API base URL (default `$OKF_MODEL_BASE_URL`)                 |
-| `--model name`                       | Model name (default `$OKF_MODEL`)                                  |
-| `--max-pages n`                      | Most update pages per run (default 10)                             |
-| `--max-tokens-per-page n`            | Most tokens per page, all attempts together (default 16000)        |
-| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)    |
+| Flag                                 | Description                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `--plan file\|-`                     | Plan JSON from `plan`, `-` for stdin (required)                                |
+| `--knowledge-dir path`               | Knowledge repo checkout; changed and created pages are written here (required) |
+| `--model-base-url url`               | Model API base URL (default `$OKF_MODEL_BASE_URL`)                             |
+| `--model name`                       | Model name (default `$OKF_MODEL`)                                              |
+| `--max-pages n`                      | Most update and create pages per run (default 10)                              |
+| `--max-tokens-per-page n`            | Most tokens per page, all attempts together (default 16000)                    |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                |
 
 The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1 before any model call. See [Writing pages](docs/write.md) for the profile, templates, provenance and the report.
 

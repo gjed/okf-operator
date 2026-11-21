@@ -13,3 +13,13 @@ var System string
 //
 //go:embed page.md
 var Page string
+
+// CreateSystem is the system message for every page creation call.
+//
+//go:embed create-system.md
+var CreateSystem string
+
+// Create is the text/template for the user message of one page creation call.
+//
+//go:embed create.md
+var Create string
