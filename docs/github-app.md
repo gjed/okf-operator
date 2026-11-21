@@ -88,6 +88,10 @@ GitHub does not let a pull request's author approve it. `propose` opens knowledg
 
 Generate a private key, store it as a secret apart from the operator App's key, and install the review App on the knowledge repo only.
 
+### Dismiss stale approvals
+
+The knowledge repo's branch protection must have **Dismiss stale pull request approvals when new commits are pushed** enabled (in a ruleset: `dismiss_stale_reviews_on_push`). `propose` pushes new commits to an open knowledge PR, and without this setting an approval of an earlier head keeps counting for a head no gate or review has seen. `approve` pins its review to the reviewed commit and checks the head only when it posts.
+
 ### Review credentials
 
 `approve` reads its own settings and nothing else:
