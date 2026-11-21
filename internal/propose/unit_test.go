@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/gjed/okf-operator/internal/write"
 )
 
 func TestDecodeReport(t *testing.T) {
@@ -47,6 +49,9 @@ func TestAgree(t *testing.T) {
 		{"plan page missing", func(f *fixture) { f.rep.Pages = f.rep.Pages[1:] }, "docs/a.md is missing from the report"},
 		{"page twice", func(f *fixture) { f.rep.Pages[1].Path = "docs/a.md" }, "twice"},
 		{"unknown result", func(f *fixture) { f.rep.Pages[1].Result = "maybe" }, "unknown result"},
+		{"created page outside the plan", func(f *fixture) {
+			f.rep.Pages[0] = write.PageResult{Path: "docs/new.md", Result: write.ResultCreated}
+		}, "docs/new.md is not a plan page"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,11 +126,59 @@ func TestVerify(t *testing.T) {
 			writeFile(t, dir, ".git/config", "x")
 			tree := baseTree()
 			tt.setup(t, dir, tree)
-			files, err := Verify(dir, tree, changed)
+			files, err := Verify(dir, tree, changed, nil)
 			if (tt.want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), tt.want)) {
 				t.Fatalf("err = %v, want %q", err, tt.want)
 			}
 			if err == nil && (len(files) != 1 || string(files["docs/a.md"].Content) != pageANew || files["docs/a.md"].Mode != modeFile) {
+				t.Fatalf("files = %v", files)
+			}
+		})
+	}
+}
+
+func TestVerifyCreated(t *testing.T) {
+	created := map[string]bool{"docs/new.md": true}
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, dir string, tree map[string]Entry)
+		want  string
+	}{
+		{"new file", func(t *testing.T, dir string, _ map[string]Entry) {
+			writeFile(t, dir, "docs/new.md", pageANew)
+		}, ""},
+		{"new file in a new directory is still only the created page", func(t *testing.T, dir string, _ map[string]Entry) {
+			writeFile(t, dir, "docs/new.md", pageANew)
+			writeFile(t, dir, "docs/sub/other.md", "x")
+		}, "docs/sub/other.md: not in the base commit and not a changed page"},
+		{"unreported new file next to it", func(t *testing.T, dir string, _ map[string]Entry) {
+			writeFile(t, dir, "docs/new.md", pageANew)
+			writeFile(t, dir, "docs/extra.md", "x")
+		}, "docs/extra.md: not in the base commit"},
+		{"already in the base", func(t *testing.T, dir string, tree map[string]Entry) {
+			writeFile(t, dir, "docs/new.md", pageANew)
+			tree["docs/new.md"] = Entry{Mode: modeFile, SHA: blobSHA([]byte(pageA))}
+		}, "docs/new.md: reported created but already in the base commit"},
+		{"symlink", func(t *testing.T, dir string, _ map[string]Entry) {
+			if err := os.Symlink("a.md", filepath.Join(dir, "docs/new.md")); err != nil {
+				t.Fatal(err)
+			}
+		}, "docs/new.md: created page is a symlink"},
+		{"missing from the checkout", func(*testing.T, string, map[string]Entry) {}, "docs/new.md: created page is missing from the checkout"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for p, c := range baseFiles {
+				writeFile(t, dir, p, c)
+			}
+			tree := baseTree()
+			tt.setup(t, dir, tree)
+			files, err := Verify(dir, tree, nil, created)
+			if (tt.want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), tt.want)) {
+				t.Fatalf("err = %v, want %q", err, tt.want)
+			}
+			if err == nil && (len(files) != 1 || string(files["docs/new.md"].Content) != pageANew || files["docs/new.md"].Mode != modeFile) {
 				t.Fatalf("files = %v", files)
 			}
 		})
@@ -137,7 +190,7 @@ func TestVerifyListsAtMostTwenty(t *testing.T) {
 	for i := range 30 {
 		writeFile(t, dir, filepath.Join("x", string(rune('a'+i%26))+strings.Repeat("z", i/26)+".md"), "x")
 	}
-	_, err := Verify(dir, map[string]Entry{}, nil)
+	_, err := Verify(dir, map[string]Entry{}, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "and 10 more") {
 		t.Fatalf("err = %v", err)
 	}
