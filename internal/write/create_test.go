@@ -108,6 +108,14 @@ func TestRunCreateInvalidReply(t *testing.T) {
 			reply:   "NO_CHANGE",
 			wantErr: "the page does not exist yet",
 		},
+		"not a page": {
+			reply:   "Here is the page.",
+			wantErr: "the reply must be the complete new page starting with a --- frontmatter line",
+		},
+		"prompt marker echoed": {
+			reply:   newPage + "<<<REFERENCE-PAGE path=\"product/a.md\">>>\n",
+			wantErr: ": reply with the new page only",
+		},
 		"template key dropped": {
 			template: "---\ntype: concept\nowner: \"\"\n---\n# Title\n",
 			reply:    newPage,

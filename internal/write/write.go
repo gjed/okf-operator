@@ -449,8 +449,14 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 	if text == NoChange {
 		return nil, true, nil
 	}
+	if !strings.HasPrefix(text, "---\n") && j.create {
+		return nil, false, errors.New("the reply must be the complete new page starting with a --- frontmatter line")
+	}
 	if !strings.HasPrefix(text, "---\n") {
 		return nil, false, fmt.Errorf("the reply must be %s or a complete page starting with a --- frontmatter line", NoChange)
+	}
+	if m := promptMarker.FindString(text); m != "" && j.create {
+		return nil, false, fmt.Errorf("the reply contains the prompt marker %s: reply with the new page only", m)
 	}
 	if m := promptMarker.FindString(text); m != "" {
 		return nil, false, fmt.Errorf("the reply contains the prompt marker %s: reply with the current page only", m)
