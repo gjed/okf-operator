@@ -1,0 +1,51 @@
+# Spec Delta
+
+## MODIFIED Requirements
+
+### Requirement: Short-lived installation tokens
+
+In App mode, the CLI SHALL mint an installation token for each repository owner and permission set it accesses at run time and SHALL NOT persist it. Installation tokens SHALL be requested with only the repositories and permissions the command needs.
+
+#### Scenario: Plan permissions
+
+- **WHEN** `plan` runs in App mode
+- **THEN** it requests read-only `contents` (and `metadata`) for the source repo and for the knowledge repo, and nothing else
+
+#### Scenario: Write permissions
+
+- **WHEN** `write` runs in App mode
+- **THEN** it requests read-only `contents`, `metadata` and `pull_requests` for the source repo only, and no token for the knowledge repo
+
+#### Scenario: Propose permissions
+
+- **WHEN** `propose` runs in App mode
+- **THEN** it requests one token for the knowledge repo only, with `contents` and `pull_requests` write and `metadata` read, and one token for the source repo only, with `contents`, `pull_requests` and `metadata` read, even when both repos have the same owner
+
+#### Scenario: Gate permissions
+
+- **WHEN** `gate` runs in App mode
+- **THEN** it requests one token for the knowledge repo with read-only `contents`, `metadata` and `pull_requests`, and one token for the plan's source repo with read-only `contents` and `metadata`, and nothing else
+
+#### Scenario: Review permissions
+
+- **WHEN** `review` runs in App mode
+- **THEN** it requests one token for the knowledge repo with read-only `contents`, `metadata` and `pull_requests`, and one token for the plan's source repo with read-only `contents` and `metadata`, and nothing else
+
+#### Scenario: Approve permissions
+
+- **WHEN** `approve` runs with the review App
+- **THEN** it requests one token for the knowledge repo only, with `pull_requests` write and `contents` and `metadata` read, signed with the review App's key
+
+### Requirement: Private key never logged
+
+The App private keys, including the review App's, and any token SHALL never appear in logs, span attributes or error messages, at any log level.
+
+#### Scenario: Debug logging
+
+- **WHEN** `plan` runs in App mode with `--log-level debug`
+- **THEN** no log line or span attribute contains the key material or a token value
+
+#### Scenario: Review App debug logging
+
+- **WHEN** `approve` runs with the review App and `--log-level debug`
+- **THEN** no log line or span attribute contains the review App's key material or token
