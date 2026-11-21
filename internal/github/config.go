@@ -48,36 +48,62 @@ type AppConfig struct {
 	KeyFile string
 }
 
+// CredentialNames are the flags and environment variables one identity is
+// read from. A command reads exactly one set, so two identities never mix.
+type CredentialNames struct {
+	AppIDFlag, KeyFileFlag string
+	AppIDEnv, KeyFileEnv   string
+	TokenEnv               string
+}
+
+// DefaultCredentials is the operator App, or GITHUB_TOKEN.
+var DefaultCredentials = CredentialNames{
+	AppIDFlag: "app-id", KeyFileFlag: "app-private-key-file",
+	AppIDEnv: EnvAppID, KeyFileEnv: EnvAppKeyFile, TokenEnv: EnvToken,
+}
+
 // Load resolves credentials: App settings (flags, then env), then GITHUB_TOKEN.
 // Every error it returns is a usage error.
 func Load(f AppFlags, getenv func(string) string) (Config, error) {
+	return LoadNamed(f, DefaultCredentials, getenv)
+}
+
+// LoadNamed resolves credentials like Load from the names in n: App settings
+// (flags, then env), then the token variable. Every error it returns is a
+// usage error and names n's options.
+func LoadNamed(f AppFlags, n CredentialNames, getenv func(string) string) (Config, error) {
 	cfg := Config{APIURL: getenv(EnvAPIURL)}
 	if cfg.APIURL == "" {
 		cfg.APIURL = defaultAPIURL
 	}
 	id, key := f.AppID, f.KeyFile
 	if id == "" {
-		id = getenv(EnvAppID)
+		id = getenv(n.AppIDEnv)
 	}
 	if key == "" {
-		key = getenv(EnvAppKeyFile)
+		key = getenv(n.KeyFileEnv)
 	}
 	switch {
 	case id != "" && key != "":
-		n, err := strconv.ParseInt(id, 10, 64)
-		if err != nil || n <= 0 {
+		num, err := strconv.ParseInt(id, 10, 64)
+		if err != nil || num <= 0 {
 			return Config{}, fmt.Errorf("invalid GitHub App ID %q: want a positive integer", id)
 		}
-		cfg.App = &AppConfig{ID: n, KeyFile: key}
+		cfg.App = &AppConfig{ID: num, KeyFile: key}
 	case id != "":
-		return Config{}, fmt.Errorf("GitHub App ID is set but the private key file is not: set --app-private-key-file or %s", EnvAppKeyFile)
+		return Config{}, fmt.Errorf("GitHub App ID is set but the private key file is not: set --%s or %s", n.KeyFileFlag, n.KeyFileEnv)
 	case key != "":
-		return Config{}, fmt.Errorf("GitHub App private key file is set but the App ID is not: set --app-id or %s", EnvAppID)
+		return Config{}, fmt.Errorf("GitHub App private key file is set but the App ID is not: set --%s or %s", n.AppIDFlag, n.AppIDEnv)
 	default:
-		cfg.Token = getenv(EnvToken)
-		if cfg.Token == "" {
+		cfg.Token = getenv(n.TokenEnv)
+		if cfg.Token != "" {
+			return cfg, nil
+		}
+		if n == DefaultCredentials {
 			return Config{}, ErrNoCredentials
 		}
+		return Config{}, fmt.Errorf("no GitHub credentials: set --%s and --%s (or %s and %s) for a GitHub App, or %s",
+			n.AppIDFlag, n.KeyFileFlag, n.AppIDEnv, n.KeyFileEnv, n.TokenEnv)
 	}
 	return cfg, nil
 }
