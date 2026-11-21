@@ -10,12 +10,15 @@ import (
 )
 
 var (
-	systemPrompt = prompts.System
-	pageTemplate = template.Must(template.New("page").Option("missingkey=error").Parse(prompts.Page))
+	systemPrompt       = prompts.System
+	pageTemplate       = template.Must(template.New("page").Option("missingkey=error").Parse(prompts.Page))
+	createSystemPrompt = prompts.CreateSystem
+	createTemplate     = template.Must(template.New("create").Option("missingkey=error").Parse(prompts.Create))
 )
 
-// promptData fills prompts/page.md.
+// promptData fills prompts/page.md, or prompts/create.md when Create is set.
 type promptData struct {
+	Create          bool
 	Profile         string
 	Type            string
 	Template        string
@@ -51,8 +54,12 @@ func render(d promptData) (string, error) {
 	d.PullRequests, d.Hunks = prs, hunks
 	d.ValidationError = neutralise(d.ValidationError)
 
+	tmpl := pageTemplate
+	if d.Create {
+		tmpl = createTemplate
+	}
 	var b strings.Builder
-	if err := pageTemplate.Execute(&b, d); err != nil {
+	if err := tmpl.Execute(&b, d); err != nil {
 		return "", fmt.Errorf("render prompt for %s: %w", d.Path, err)
 	}
 	return b.String(), nil

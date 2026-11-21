@@ -112,12 +112,13 @@ func TestTelemetry(t *testing.T) {
 	t.Cleanup(func() { otel.SetMeterProvider(prev) })
 
 	e := newEnv(t)
-	// a changes, b is unchanged, c is invalid twice and dropped, d is a create.
+	// a changes, b is unchanged, c is invalid twice and dropped, d is created.
 	e.llm.push(
 		withUsage(respond(alphaNew), 100, 40),
 		withUsage(respond("NO_CHANGE"), 90, 3),
 		withUsage(respond("bad"), 120, 5),
 		withUsage(respond("worse"), 130, 6),
+		withUsage(respond(newPage), 80, 30),
 	)
 	p := testPlan(
 		updatePage(alphaPath, "src/a.go"),
@@ -133,7 +134,7 @@ func TestTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Tokens != (Tokens{Prompt: 440, Completion: 54}) {
+	if rep.Tokens != (Tokens{Prompt: 520, Completion: 84}) {
 		t.Fatalf("run tokens = %+v", rep.Tokens)
 	}
 
@@ -152,11 +153,12 @@ func TestTelemetry(t *testing.T) {
 		"okf.write.from":                testCursor,
 		"okf.write.to":                  testHead,
 		"okf.write.pages.changed":       int64(1),
+		"okf.write.pages.created":       int64(1),
 		"okf.write.pages.unchanged":     int64(1),
-		"okf.write.pages.dropped":       int64(2),
+		"okf.write.pages.dropped":       int64(1),
 		"okf.write.validation_failures": int64(2),
-		"okf.write.tokens.prompt":       int64(440),
-		"okf.write.tokens.completion":   int64(54),
+		"okf.write.tokens.prompt":       int64(520),
+		"okf.write.tokens.completion":   int64(84),
 	}
 	for k, v := range want {
 		if got[k].AsInterface() != v {
@@ -180,12 +182,12 @@ func TestTelemetry(t *testing.T) {
 		return m
 	}
 
-	for kind, wantN := range map[string]int64{"prompt": 440, "completion": 54} {
+	for kind, wantN := range map[string]int64{"prompt": 520, "completion": 84} {
 		if v := valueOf(t, c, "okf.write.tokens", with(map[string]string{"okf.token.kind": kind})); v != wantN {
 			t.Errorf("okf.write.tokens{%s} = %d, want %d", kind, v, wantN)
 		}
 	}
-	for result, wantN := range map[string]int64{"changed": 1, "unchanged": 1, "dropped": 2} {
+	for result, wantN := range map[string]int64{"changed": 1, "created": 1, "unchanged": 1, "dropped": 1} {
 		if v := valueOf(t, c, "okf.write.pages", with(map[string]string{"okf.write.result": result})); v != wantN {
 			t.Errorf("okf.write.pages{%s} = %d, want %d", result, v, wantN)
 		}

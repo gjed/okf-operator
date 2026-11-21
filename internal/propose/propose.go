@@ -118,8 +118,8 @@ const BranchPrefix = "okf/"
 // Branch is the bot branch of source owner/name.
 func Branch(source string) string { return BranchPrefix + source }
 
-// DecodeReport reads one write report v1 document. Unknown keys and other
-// versions fail.
+// DecodeReport reads one write report document of version write.Version.
+// Unknown keys and other versions fail.
 func DecodeReport(r io.Reader) (*write.Report, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()

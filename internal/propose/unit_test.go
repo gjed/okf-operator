@@ -16,10 +16,11 @@ import (
 
 func TestDecodeReport(t *testing.T) {
 	tests := []struct{ name, doc, want string }{
-		{"ok", `{"version":1,"source":"acme/api","pages":[]}`, ""},
-		{"version 2", `{"version":2}`, "report version 2 is not supported"},
-		{"unknown key", `{"version":1,"extra":true}`, "unknown field"},
-		{"two documents", `{"version":1} {"version":1}`, "more than one JSON document"},
+		{"ok", `{"version":2,"source":"acme/api","pages":[]}`, ""},
+		{"version 1", `{"version":1}`, "report version 1 is not supported"},
+		{"version 3", `{"version":3}`, "report version 3 is not supported"},
+		{"unknown key", `{"version":2,"extra":true}`, "unknown field"},
+		{"two documents", `{"version":2} {"version":2}`, "more than one JSON document"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

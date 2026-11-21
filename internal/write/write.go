@@ -24,21 +24,22 @@ import (
 )
 
 // Version is the write report JSON contract version.
-const Version = 1
+const Version = 2
 
 // Page results.
 const (
 	ResultChanged   = "changed"
+	ResultCreated   = "created"
 	ResultUnchanged = "unchanged"
 	ResultDropped   = "dropped"
 )
 
 // Drop reasons.
 const (
-	ReasonPatchUnavailable  = "patch_unavailable"
-	ReasonValidationFailed  = "validation_failed"
-	ReasonCreateUnsupported = "create_unsupported"
-	ReasonPageMissing       = "page_missing"
+	ReasonPatchUnavailable = "patch_unavailable"
+	ReasonValidationFailed = "validation_failed"
+	ReasonTemplateMissing  = "template_missing"
+	ReasonPageMissing      = "page_missing"
 )
 
 // NoChange is the reply that tells write the page is still accurate.
@@ -139,18 +140,30 @@ func Encode(w io.Writer, r *Report) error {
 	return enc.Encode(r)
 }
 
-// job is one update page on its way through the model.
+// job is one update or create page on its way through the model.
 type job struct {
 	page    plan.Page
-	current []byte
+	create  bool
+	current []byte // the page on disk; nil for a create
 	data    promptData
+	system  string
 	prompt  string
 	result  PageResult
 	output  []byte
 }
 
+// reserve is the text the page reply is expected to be about as long as: the
+// current page, or the template for a create.
+func (j *job) reserve() string {
+	if j.create {
+		return j.data.Template
+	}
+	return string(j.current)
+}
+
 // Run processes every page of p. Files under d.KnowledgeDir change only when
-// Run returns a nil error, and then only the pages reported as changed.
+// Run returns a nil error, and then only the pages reported as changed or
+// created.
 func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 	rep := &Report{
 		Version:     Version,
@@ -176,7 +189,7 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		case plan.StateUpdate:
 			jobs = append(jobs, &job{page: pg, result: PageResult{Path: pg.Path}})
 		case plan.StateCreate:
-			rep.Pages = append(rep.Pages, PageResult{Path: pg.Path, Result: ResultDropped, Reason: ReasonCreateUnsupported})
+			jobs = append(jobs, &job{page: pg, create: true, result: PageResult{Path: pg.Path}})
 		case plan.StateMissing:
 			rep.Pages = append(rep.Pages, PageResult{Path: pg.Path, Result: ResultDropped, Reason: ReasonPageMissing})
 		default:
@@ -184,7 +197,7 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		}
 	}
 	if len(jobs) > d.MaxPages {
-		return nil, fmt.Errorf("plan has %d update pages, over --max-pages %d: no model call made", len(jobs), d.MaxPages)
+		return nil, fmt.Errorf("plan has %d update and create pages, over --max-pages %d: no model call made", len(jobs), d.MaxPages)
 	}
 	if len(jobs) == 0 {
 		slices.SortFunc(rep.Pages, func(a, b PageResult) int { return strings.Compare(a.Path, b.Path) })
@@ -202,6 +215,12 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		return nil, err
 	}
 	for _, j := range jobs {
+		if j.create {
+			if err := checkAbsent(root, j.page.Path); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		if j.current, err = root.ReadFile(j.page.Path); err != nil {
 			return nil, fmt.Errorf("read page %s: %w", j.page.Path, err)
 		}
@@ -300,11 +319,30 @@ func capPullRequests(prs []plan.PullRequest, limit int) ([]plan.PullRequest, int
 	return prs[keep:], keep
 }
 
+// checkAbsent fails when a create page path exists under root, as any file
+// type: the plan no longer matches the checkout.
+func checkAbsent(root *os.Root, name string) error {
+	_, err := root.Lstat(name)
+	switch {
+	case err == nil:
+		return fmt.Errorf("page %s has state create but exists in the knowledge dir: re-run plan: no model call made", name)
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	default:
+		return fmt.Errorf("check create page %s: %w", name, err)
+	}
+}
+
 // prepare renders every first-attempt prompt and checks the budget before any
-// model call. Pages with an unavailable patch are dropped here.
+// model call. Pages with an unavailable patch, and creates without a
+// template, are dropped here.
 func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
 	var over []string
 	for _, j := range jobs {
+		if j.create && kb.template(j.page.Type) == "" {
+			j.result.Result, j.result.Reason = ResultDropped, ReasonTemplateMissing
+			continue
+		}
 		hunks := make([]hunk, 0, len(j.page.SourcePaths))
 		for _, sp := range j.page.SourcePaths {
 			patch, ok := src.patches[sp]
@@ -317,23 +355,32 @@ func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
 		if j.result.Result != "" {
 			continue
 		}
-		typ := pageType(j.current)
 		j.data = promptData{
 			Profile:      kb.profile,
-			Type:         typ,
-			Template:     kb.template(typ),
-			References:   kb.references(typ),
 			Path:         j.page.Path,
-			Page:         string(j.current),
 			PullRequests: src.prs,
 			PROmitted:    src.omitted,
 			Hunks:        hunks,
+		}
+		if j.create {
+			j.system = createSystemPrompt
+			j.data.Create = true
+			j.data.Type = j.page.Type
+			j.data.Template = kb.template(j.page.Type)
+			j.data.References = kb.sameTypeReferences(j.page.Type)
+		} else {
+			typ := pageType(j.current)
+			j.system = systemPrompt
+			j.data.Type = typ
+			j.data.Template = kb.template(typ)
+			j.data.References = kb.references(typ)
+			j.data.Page = string(j.current)
 		}
 		var err error
 		if j.prompt, err = render(j.data); err != nil {
 			return err
 		}
-		if estimate(systemPrompt+j.prompt)+estimate(string(j.current)) > maxTokens {
+		if estimate(j.system+j.prompt)+estimate(j.reserve()) > maxTokens {
 			over = append(over, j.page.Path)
 		}
 	}
@@ -351,12 +398,12 @@ func process(ctx context.Context, j *job, f provenance.Fields, d Deps) (int, err
 	failures := 0
 	for {
 		used := j.result.Tokens.total()
-		est := estimate(systemPrompt + prompt)
-		if used+est+estimate(string(j.current)) > budget {
+		est := estimate(j.system + prompt)
+		if used+est+estimate(j.reserve()) > budget {
 			j.result.Result, j.result.Reason = ResultDropped, ReasonValidationFailed
 			return failures, nil
 		}
-		reply, err := d.Model.Complete(ctx, model.Request{System: systemPrompt, User: prompt, MaxTokens: budget - used - est})
+		reply, err := d.Model.Complete(ctx, model.Request{System: j.system, User: prompt, MaxTokens: budget - used - est})
 		if err != nil {
 			return failures, fmt.Errorf("page %s: %w", j.page.Path, err)
 		}
@@ -365,9 +412,12 @@ func process(ctx context.Context, j *job, f provenance.Fields, d Deps) (int, err
 
 		out, unchanged, verr := accept(j, reply, f, d.Validator)
 		if verr == nil {
-			if unchanged {
+			switch {
+			case unchanged:
 				j.result.Result = ResultUnchanged
-			} else {
+			case j.create:
+				j.result.Result, j.output = ResultCreated, out
+			default:
 				j.result.Result, j.output = ResultChanged, out
 			}
 			return failures, nil
@@ -393,6 +443,9 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 		return nil, false, errors.New("the reply was cut off at the token limit")
 	}
 	text := unfence(strings.TrimSpace(reply.Text))
+	if text == NoChange && j.create {
+		return nil, false, fmt.Errorf("the page does not exist yet: reply with the complete new page, not %s", NoChange)
+	}
 	if text == NoChange {
 		return nil, true, nil
 	}
@@ -405,6 +458,16 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 	page := []byte(text + "\n")
 	if err := v.Validate(j.page.Path, page); err != nil {
 		return nil, false, err
+	}
+	if j.create {
+		if got := pageType(page); got != j.page.Type {
+			return nil, false, fmt.Errorf("the page type is %q but must be %q", got, j.page.Type)
+		}
+		if missing := missingKeys([]byte(j.data.Template), page); len(missing) > 0 {
+			return nil, false, fmt.Errorf("the reply lacks the template frontmatter keys %s", strings.Join(missing, ", "))
+		}
+		out, err := provenance.Stamp(page, f)
+		return out, false, err
 	}
 	if got, want := pageType(page), pageType(j.current); got != want {
 		return nil, false, fmt.Errorf("the page type is %q but must stay %q", got, want)
@@ -449,14 +512,21 @@ func usage(r model.Reply, promptEst int) Tokens {
 // with common tokenizers. Upgrade path: a tokenizer per model family.
 func estimate(s string) int { return (len(s) + 2) / 3 }
 
-// writePages writes every changed page. It runs only after all pages succeeded.
+// writePages writes every changed and created page. It runs only after all
+// pages succeeded.
 func writePages(root *os.Root, jobs []*job) error {
 	var written []string
 	for _, j := range jobs {
-		if j.result.Result != ResultChanged {
+		var err error
+		switch j.result.Result {
+		case ResultChanged:
+			err = replaceFile(root, j.page.Path, j.output)
+		case ResultCreated:
+			err = createFile(root, j.page.Path, j.output)
+		default:
 			continue
 		}
-		if err := replaceFile(root, j.page.Path, j.output); err != nil {
+		if err != nil {
 			return fmt.Errorf("write page %s (already written: %s): %w", j.page.Path, strings.Join(written, ", "), err)
 		}
 		written = append(written, j.page.Path)
@@ -466,19 +536,48 @@ func writePages(root *os.Root, jobs []*job) error {
 
 // replaceFile writes data to a temporary file next to name and renames it over
 // name, so an interrupted write never leaves a half-written page.
-func replaceFile(root *os.Root, name string, data []byte) (err error) {
+func replaceFile(root *os.Root, name string, data []byte) error {
 	fi, err := root.Stat(name)
 	if err != nil {
 		return err
 	}
-	tmp := path.Join(path.Dir(name), "."+path.Base(name)+".okf-tmp")
-	// A temp file left by an interrupted run is replaced, never followed.
-	if err := root.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode().Perm())
+	tmp, err := writeTemp(root, name, data, fi.Mode().Perm())
 	if err != nil {
 		return err
+	}
+	if err := root.Rename(tmp, name); err != nil {
+		_ = root.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// createFile writes data to a temporary file next to name and hard-links it
+// to name. The link fails when name exists, so a create never overwrites a
+// file, and an interrupted write never leaves a half-written page.
+func createFile(root *os.Root, name string, data []byte) error {
+	if err := root.MkdirAll(path.Dir(name), 0o755); err != nil {
+		return err
+	}
+	tmp, err := writeTemp(root, name, data, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Remove(tmp) }()
+	return root.Link(tmp, name)
+}
+
+// writeTemp writes data to a new temporary file next to name and returns its
+// path.
+func writeTemp(root *os.Root, name string, data []byte, perm fs.FileMode) (tmp string, err error) {
+	tmp = path.Join(path.Dir(name), "."+path.Base(name)+".okf-tmp")
+	// A temp file left by an interrupted run is replaced, never followed.
+	if err := root.Remove(tmp); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return "", err
 	}
 	defer func() {
 		if err != nil {
@@ -492,8 +591,5 @@ func replaceFile(root *os.Root, name string, data []byte) (err error) {
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
-	if err != nil {
-		return err
-	}
-	return root.Rename(tmp, name)
+	return tmp, err
 }

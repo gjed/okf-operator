@@ -246,8 +246,8 @@ func TestWritePlanFromStdin(t *testing.T) {
 	if err := json.Unmarshal([]byte(out.String()), &rep); err != nil {
 		t.Fatalf("stdout is not the report: %v\n%s", err, out.String())
 	}
-	if rep.Version != 1 || rep.Pages == nil || len(rep.Pages) != 0 {
-		t.Fatalf("report = %+v, want version 1 and pages []\n%s", rep, out.String())
+	if rep.Version != 2 || rep.Pages == nil || len(rep.Pages) != 0 {
+		t.Fatalf("report = %+v, want version 2 and pages []\n%s", rep, out.String())
 	}
 	if n := len(model.requests()); n != 0 {
 		t.Fatalf("empty plan reached the model %d times", n)

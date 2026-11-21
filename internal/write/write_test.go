@@ -54,7 +54,7 @@ func TestRunPageUpdated(t *testing.T) {
 		t.Fatalf("requests = %+v, want one call with the system prompt and a positive max_tokens", reqs)
 	}
 
-	if rep.Version != 1 || rep.Source != testSource || rep.Bundle != testBundle ||
+	if rep.Version != Version || rep.Source != testSource || rep.Bundle != testBundle ||
 		rep.From != testCursor || rep.To != testHead || rep.Model != testModelName ||
 		rep.GeneratedBy != "okf-operator/1.2.3/m1" {
 		t.Errorf("report header = %+v", rep)
@@ -354,15 +354,14 @@ func TestRunPureRenameIsNotMissingPatch(t *testing.T) {
 	}
 }
 
-// Create and missing pages are reported as dropped, create no file, and do
-// not count against --max-pages.
-func TestRunCreateAndMissingPagesDropped(t *testing.T) {
+// Missing pages are reported as dropped, create no file, and do not count
+// against --max-pages.
+func TestRunMissingPagesDropped(t *testing.T) {
 	e := newEnv(t)
 	snap := tree(t, e.kb)
 	e.llm.push(respond(alphaNew))
 	p := testPlan(
 		updatePage(alphaPath, "src/a.go"),
-		plan.Page{Path: "product/new.md", State: plan.StateCreate, Type: "concept", SourcePaths: []string{"src/a.go"}},
 		plan.Page{Path: "product/gone.md", State: plan.StateMissing, Type: "concept", SourcePaths: []string{"src/a.go"}},
 	)
 	rep, err := e.run(p, maxPages(1))
@@ -372,7 +371,6 @@ func TestRunCreateAndMissingPagesDropped(t *testing.T) {
 	want := []PageResult{
 		{Path: alphaPath, Result: ResultChanged, Attempts: 1},
 		{Path: "product/gone.md", Result: ResultDropped, Reason: ReasonPageMissing},
-		{Path: "product/new.md", Result: ResultDropped, Reason: ReasonCreateUnsupported},
 	}
 	for i, w := range want {
 		g := rep.Pages[i]

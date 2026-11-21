@@ -39,10 +39,10 @@ func runWrite(ctx context.Context, env Env, args []string) error {
 		fs.PrintDefaults()
 	}
 	planFile := fs.String("plan", "", "plan JSON `file` from `okf-operator plan`, or - for stdin (required)")
-	kbDir := fs.String("knowledge-dir", "", "`path` to a checkout of the knowledge repo; changed pages are written here (required)")
+	kbDir := fs.String("knowledge-dir", "", "`path` to a checkout of the knowledge repo; changed and created pages are written here (required)")
 	baseURL := fs.String("model-base-url", "", "OpenAI-compatible API base `url` (default $"+EnvModelBaseURL+")")
 	modelName := fs.String("model", "", "model `name` (default $"+EnvModel+")")
-	maxPages := fs.Int("max-pages", 10, "most update pages one run may send to the model")
+	maxPages := fs.Int("max-pages", 10, "most update and create pages one run may send to the model")
 	maxTokens := fs.Int("max-tokens-per-page", 16000, "most model tokens, all attempts together, for one page")
 	var app github.AppFlags
 	app.Register(fs)

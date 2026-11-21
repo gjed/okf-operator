@@ -15,17 +15,18 @@ const meterName = "github.com/gjed/okf-operator/internal/write"
 // the okf.write.* counters. It opens no span of its own. Page text, prompts
 // and PR bodies never become attributes.
 func record(ctx context.Context, rep *Report, failures int) {
-	results := map[string]int{ResultChanged: 0, ResultUnchanged: 0, ResultDropped: 0}
+	results := map[string]int{ResultChanged: 0, ResultCreated: 0, ResultUnchanged: 0, ResultDropped: 0}
 	for _, p := range rep.Pages {
 		results[p.Result]++
 	}
 	recordSpend(ctx, rep, failures)
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.Int("okf.write.pages.changed", results[ResultChanged]),
+		attribute.Int("okf.write.pages.created", results[ResultCreated]),
 		attribute.Int("okf.write.pages.unchanged", results[ResultUnchanged]),
 		attribute.Int("okf.write.pages.dropped", results[ResultDropped]),
 	)
-	for _, r := range []string{ResultChanged, ResultUnchanged, ResultDropped} {
+	for _, r := range []string{ResultChanged, ResultCreated, ResultUnchanged, ResultDropped} {
 		add(ctx, rep, "okf.write.pages", "Planned pages by write result", "{page}", results[r], attribute.String("okf.write.result", r))
 	}
 }
