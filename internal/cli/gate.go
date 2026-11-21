@@ -106,11 +106,17 @@ func readReview(file string) (*gate.Review, error) {
 }
 
 func checkGateFlags(fs *flag.FlagSet, kbRepo string, pr int, planFile string) error {
+	return checkPRFlags(fs, kbRepo, pr, "plan", planFile)
+}
+
+// checkPRFlags checks the flags of a command that reads one knowledge PR and
+// one required input file named by fileFlag.
+func checkPRFlags(fs *flag.FlagSet, kbRepo string, pr int, fileFlag, file string) error {
 	var errs []error
 	if fs.NArg() > 0 {
 		errs = append(errs, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " ")))
 	}
-	for _, f := range []struct{ name, value string }{{"knowledge-repo", kbRepo}, {"plan", planFile}} {
+	for _, f := range []struct{ name, value string }{{"knowledge-repo", kbRepo}, {fileFlag, file}} {
 		if f.value == "" {
 			errs = append(errs, fmt.Errorf("missing required flag --%s", f.name))
 		}
