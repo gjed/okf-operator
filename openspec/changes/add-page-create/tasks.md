@@ -6,4 +6,4 @@
 
 ## 2. Propose commits created pages
 
-- [ ] 2.1 Make `propose` accept report v2 only, accept the result `created`, verify created pages as new regular files absent from the base tree, commit them with mode `100644` and list them in the PR body; verify tests for: created page committed as a new `100644` path, unreported new file still rejected, created page that is a symlink → exit 1, created page already in the base → exit 1, report page outside the plan → exit 1, report v1 → exit 1
+- [x] 2.1 Make `propose` accept report v2 only, accept the result `created`, verify created pages as new regular files absent from the base tree, commit them with mode `100644` and list them in the PR body; verify tests for: created page committed as a new `100644` path, unreported new file still rejected, created page that is a symlink → exit 1, created page already in the base → exit 1, report page outside the plan → exit 1, report v1 → exit 1

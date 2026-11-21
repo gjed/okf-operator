@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/gjed/okf-operator/internal/cursor"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 	"github.com/gjed/okf-operator/internal/write"
 )
 
@@ -57,6 +60,78 @@ func TestRunOpensPR(t *testing.T) {
 	}
 	if c := f.cursor(); c != testTo+"\n" {
 		t.Fatalf("cursor = %q", c)
+	}
+}
+
+// addCreate adds docs/services/new.md to the plan as a create, to the report
+// as created, and to the checkout.
+func (f *fixture) addCreate(t *testing.T) {
+	t.Helper()
+	f.plan.Pages = append(f.plan.Pages, plan.Page{Path: "docs/services/new.md", State: plan.StateCreate, Type: "concept", SourcePaths: []string{"src/n.go"}})
+	f.rep.Pages = append(f.rep.Pages, write.PageResult{Path: "docs/services/new.md", Result: write.ResultCreated, Attempts: 1})
+	writeFile(t, f.dir, "docs/services/new.md", pageANew)
+}
+
+func TestRunCommitsCreatedPage(t *testing.T) {
+	f := newFixture(t)
+	f.addCreate(t)
+	d := f.deps(t)
+	res, err := Run(t.Context(), f.plan, f.rep, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := f.fake.Ref(testKB, "okf/acme/api")
+	if res.Action != ActionOpened || res.Commit != head {
+		t.Fatalf("result = %+v", res)
+	}
+	if got := f.fake.Files(testKB, head); !mapsEqual(got, with(map[string]string{"docs/a.md": pageANew, "docs/services/new.md": pageANew})) {
+		t.Fatalf("committed files = %v", got)
+	}
+	tree, err := d.Knowledge.Tree(t.Context(), head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := tree["docs/services/new.md"]; e.Mode != "100644" {
+		t.Errorf("created page tree entry = %+v, want mode 100644", e)
+	}
+	if body := f.fake.PullRequests(testKB)[0].Body; !strings.Contains(body, "- created: `docs/services/new.md`\n") {
+		t.Errorf("body does not list the created page:\n%s", body)
+	}
+}
+
+// A created page in the report does not let any other new file through, and
+// a created page that is a symlink fails.
+func TestRunCreatedPageRejections(t *testing.T) {
+	cases := map[string]struct {
+		setup func(t *testing.T, f *fixture)
+		want  string
+	}{
+		"unreported new file": {func(t *testing.T, f *fixture) {
+			writeFile(t, f.dir, "docs/services/extra.md", "x")
+		}, "docs/services/extra.md: not in the base commit"},
+		"symlink": {func(t *testing.T, f *fixture) {
+			p := filepath.Join(f.dir, "docs/services/new.md")
+			if err := os.Remove(p); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("../a.md", p); err != nil {
+				t.Fatal(err)
+			}
+		}, "docs/services/new.md: created page is a symlink"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			f.addCreate(t)
+			tc.setup(t, f)
+			_, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+			if f.fake.Ref(testKB, "okf/acme/api") != "" || len(f.fake.PullRequests(testKB)) != 0 || f.cursor() != testFrom+"\n" {
+				t.Fatal("a rejected run wrote to GitHub")
+			}
+		})
 	}
 }
 

@@ -162,7 +162,7 @@ func Agree(p *plan.Plan, rep *write.Report) error {
 			return fmt.Errorf("report lists page %s twice", pg.Path)
 		}
 		switch pg.Result {
-		case write.ResultChanged, write.ResultUnchanged, write.ResultDropped:
+		case write.ResultChanged, write.ResultCreated, write.ResultUnchanged, write.ResultDropped:
 		default:
 			return fmt.Errorf("report page %s has unknown result %q", pg.Path, pg.Result)
 		}
@@ -176,7 +176,7 @@ func Agree(p *plan.Plan, rep *write.Report) error {
 	return nil
 }
 
-// Run proposes the pages rep marks changed and advances the cursor. All
+// Run proposes the pages rep marks changed or created and advances the cursor. All
 // reads happen before the first write, and the cursor moves last.
 func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result, error) {
 	if err := Agree(p, rep); err != nil {
@@ -222,12 +222,11 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 		return nil, fmt.Errorf("no bot PR is open: check out %s at %s and re-run write, not %s", defBranch, defHead, d.Base)
 	}
 
-	changed := changedPages(rep)
 	tree, err := d.Knowledge.Tree(ctx, d.Base)
 	if err != nil {
 		return nil, err
 	}
-	files, err := Verify(d.KnowledgeDir, tree, changed)
+	files, err := Verify(d.KnowledgeDir, tree, pagesWith(rep, write.ResultChanged), pagesWith(rep, write.ResultCreated))
 	if err != nil {
 		return nil, err
 	}
@@ -279,10 +278,10 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	return res, nil
 }
 
-func changedPages(rep *write.Report) map[string]bool {
+func pagesWith(rep *write.Report, result string) map[string]bool {
 	out := map[string]bool{}
 	for _, pg := range rep.Pages {
-		if pg.Result == write.ResultChanged {
+		if pg.Result == result {
 			out[pg.Path] = true
 		}
 	}

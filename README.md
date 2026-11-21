@@ -121,7 +121,7 @@ The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1
 
 ### propose
 
-`propose` commits the pages a `write` report marks `changed` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
+`propose` commits the pages a `write` report marks `changed` or `created` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
 
 Run the stages in this order, because a bot PR that is still open holds earlier page changes the default branch lacks:
 
@@ -150,9 +150,9 @@ okf-operator propose --plan plan.json --report report.json \
 | `--knowledge-base sha`               | Full commit SHA the checkout is at (required)                   |
 | `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md) |
 
-Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed pages. Any mismatch exits 1 and changes nothing.
+Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed pages and the created pages, which must be new regular files. Any mismatch exits 1 and changes nothing.
 
-An initial plan only writes the cursor and skips the checkout checks. A report with no changed page opens no PR and still advances the cursor. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
+An initial plan only writes the cursor and skips the checkout checks. A report with no changed or created page opens no PR and still advances the cursor. `write` does not link a created page from the bundle `index.md`, and `gate` never auto-merges a PR that adds a page, so the reviewer adds the link. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
 
 ### gate
 

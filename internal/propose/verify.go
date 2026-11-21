@@ -23,14 +23,15 @@ const maxListed = 20
 
 // Verify checks the page-write input contract against the base tree: every
 // path under dir except the top-level .git must exist in tree with the same
-// content, except the changed pages, which must exist and differ. It returns
-// the content and mode of the changed pages.
+// content, except the changed pages, which must exist and differ, and the
+// created pages, which must be regular files absent from tree. It returns the
+// content and mode of the changed and created pages.
 //
 // SIMPLIFIED: without git, ignored files cannot be told apart, so build
 // artefacts in the checkout fail the check; file mode changes other than
 // symlinks are not detected; the whole checkout is hashed on every run.
 // Upgrade path: hash only the bundle directory and .kb/ if repos grow.
-func Verify(dir string, tree map[string]Entry, changed map[string]bool) (map[string]File, error) {
+func Verify(dir string, tree map[string]Entry, changed, created map[string]bool) (map[string]File, error) {
 	local, err := scan(dir, tree)
 	if err != nil {
 		return nil, err
@@ -40,6 +41,12 @@ func Verify(dir string, tree map[string]Entry, changed map[string]bool) (map[str
 	for path, l := range local {
 		base, inBase := tree[path]
 		switch {
+		case created[path] && inBase:
+			problems = append(problems, path+": reported created but already in the base commit")
+		case created[path] && l.mode == modeSymlink:
+			problems = append(problems, path+": created page is a symlink")
+		case created[path]:
+			files[path] = File{Mode: modeFile, Content: l.content}
 		case changed[path] && !inBase:
 			problems = append(problems, path+": changed page is not in the base commit")
 		case changed[path] && l.sha == base.SHA:
@@ -64,6 +71,11 @@ func Verify(dir string, tree map[string]Entry, changed map[string]bool) (map[str
 			if _, inBase := tree[path]; !inBase {
 				problems = append(problems, path+": changed page is missing from the checkout")
 			}
+		}
+	}
+	for path := range created {
+		if _, ok := local[path]; !ok {
+			problems = append(problems, path+": created page is missing from the checkout")
 		}
 	}
 	if len(problems) == 0 {
