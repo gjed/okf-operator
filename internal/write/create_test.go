@@ -95,6 +95,20 @@ func TestRunCreateWithoutTemplateDropped(t *testing.T) {
 	requireSameTree(t, snap, tree(t, e.kb))
 }
 
+// An existing but empty template is still a template: the page is created.
+func TestRunCreateWithEmptyTemplate(t *testing.T) {
+	e := newEnv(t)
+	writeFile(t, e.kb, ".kb/templates/concept.md", "  \n")
+	e.llm.push(respond(newPage))
+	rep, err := e.run(testPlan(createPage(newPath, "concept", "src/a.go")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pg := rep.Pages[0]; pg.Result != ResultCreated {
+		t.Errorf("page = %+v, want created", pg)
+	}
+}
+
 // Invalid create replies are retried once and then dropped without a file.
 func TestRunCreateInvalidReply(t *testing.T) {
 	cases := map[string]struct {

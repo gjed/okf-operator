@@ -339,7 +339,7 @@ func checkAbsent(root *os.Root, name string) error {
 func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
 	var over []string
 	for _, j := range jobs {
-		if j.create && kb.template(j.page.Type) == "" {
+		if _, ok := kb.templates[j.page.Type]; j.create && !ok {
 			j.result.Result, j.result.Reason = ResultDropped, ReasonTemplateMissing
 			continue
 		}
