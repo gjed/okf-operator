@@ -34,6 +34,18 @@ func rule(name string, pass bool, details ...string) gate.Result {
 	return gate.Result{Name: name, Pass: pass, Details: details}
 }
 
+// rules is every deterministic rule passing, with links replaced by extra.
+func rules(extra ...gate.Result) []gate.Result {
+	var out []gate.Result
+	for _, name := range deterministicRules[:len(deterministicRules)-1] {
+		out = append(out, rule(name, true))
+	}
+	if len(extra) == 0 {
+		extra = []gate.Result{rule(gate.RuleLinks, true)}
+	}
+	return append(out, extra...)
+}
+
 func TestRun(t *testing.T) {
 	links, review := rule(gate.RuleLinks, true), rule(gate.RuleReview, true)
 	tests := []struct {
@@ -43,11 +55,12 @@ func TestRun(t *testing.T) {
 		approved bool
 		reason   string
 	}{
-		{"approval", report(true, links, review), head, true, ""},
-		{"gate failed", report(false, rule(gate.RuleLinks, false, "x"), review), head, false, ReasonGateFailed},
-		{"edited pass", report(true, rule(gate.RuleLinks, true, "broken link"), review), head, false, ReasonGateFailed},
-		{"review missing", report(true, links), head, false, ReasonReviewMissing},
-		{"head moved", report(true, links, review), "3333333333333333333333333333333333333333", false, ReasonHeadMoved},
+		{"approval", report(true, rules(links, review)...), head, true, ""},
+		{"gate failed", report(false, rules(rule(gate.RuleLinks, false, "x"), review)...), head, false, ReasonGateFailed},
+		{"edited pass", report(true, rules(rule(gate.RuleLinks, true, "broken link"), review)...), head, false, ReasonGateFailed},
+		{"deterministic rule removed", report(true, links, review), head, false, ReasonReportIncomplete},
+		{"review missing", report(true, rules()...), head, false, ReasonReviewMissing},
+		{"head moved", report(true, rules(links, review)...), "3333333333333333333333333333333333333333", false, ReasonHeadMoved},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,7 +84,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunErrors(t *testing.T) {
-	ok := report(true, rule(gate.RuleReview, true))
+	ok := report(true, rules(rule(gate.RuleLinks, true), rule(gate.RuleReview, true))...)
 	if _, err := Run(context.Background(), &fakePRs{head: head}, "acme/kb", 8, ok); err == nil {
 		t.Error("report for another PR: no error")
 	}
@@ -85,7 +98,7 @@ func TestSpanAttributes(t *testing.T) {
 	spans := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
 	ctx, span := tp.Tracer("test").Start(context.Background(), "approve")
-	if _, err := Run(ctx, &fakePRs{head: "moved"}, "acme/kb", 7, report(true, rule(gate.RuleReview, true))); err != nil {
+	if _, err := Run(ctx, &fakePRs{head: "moved"}, "acme/kb", 7, report(true, rules(rule(gate.RuleLinks, true), rule(gate.RuleReview, true))...)); err != nil {
 		t.Fatal(err)
 	}
 	span.End()

@@ -14,6 +14,9 @@ import (
 )
 
 const passingReport = `{"version":1,"pr":7,"head_sha":"2222222222222222222222222222222222222222","pass":true,"rules":[
+{"name":"provenance","pass":true,"details":[]},{"name":"routed_set","pass":true,"details":[]},
+{"name":"allowlist","pass":true,"details":[]},{"name":"change_shape","pass":true,"details":[]},
+{"name":"size","pass":true,"details":[]},
 {"name":"links","pass":true,"details":[]},{"name":"review","pass":true,"details":[]}]}`
 
 // approveFixture starts a GitHub fake with PR 7 of acme/kb at gateHead,
@@ -96,7 +99,8 @@ func TestApproveDeclines(t *testing.T) {
 	}{
 		{"gate failed", strings.Replace(passingReport, `"pass":true,"rules"`, `"pass":false,"rules"`, 1), "gate_failed", gateHead},
 		{"edited pass", strings.Replace(passingReport, `"links","pass":true,"details":[]`, `"links","pass":false,"details":["x"]`, 1), "gate_failed", gateHead},
-		{"review missing", strings.Replace(passingReport, `"review"`, `"size"`, 1), "review_missing", gateHead},
+		{"review missing", strings.Replace(passingReport, `,{"name":"review","pass":true,"details":[]}`, ``, 1), "review_missing", gateHead},
+		{"rule removed", strings.Replace(passingReport, `{"name":"size","pass":true,"details":[]},`, ``, 1), "report_incomplete", gateHead},
 		{"head moved", passingReport, "head_moved", gateBase},
 	}
 	for _, tt := range tests {
