@@ -26,4 +26,4 @@
 ## 6. Docs and archive
 
 - [x] 6.1 Document `review`, `gate --review` and `approve` in `README.md`, and verify the markdown lint passes
-- [ ] 6.2 Archive the change with `openspec archive add-llm-review -y`, and verify `openspec validate --all --strict` passes
+- [x] 6.2 Archive the change with `openspec archive add-llm-review -y`, and verify `openspec validate --all --strict` passes
