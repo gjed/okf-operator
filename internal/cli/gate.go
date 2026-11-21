@@ -13,6 +13,7 @@ import (
 
 	"github.com/gjed/okf-operator/internal/gate"
 	"github.com/gjed/okf-operator/internal/github"
+	"github.com/gjed/okf-operator/internal/review"
 )
 
 var gateCommand = Command{
@@ -24,12 +25,13 @@ var gateCommand = Command{
 func runGate(ctx context.Context, env Env, args []string) error {
 	fs := flag.NewFlagSet("gate", flag.ContinueOnError)
 	fs.Usage = func() {
-		_, _ = fmt.Fprint(fs.Output(), "Usage: okf-operator gate --knowledge-repo owner/name --pr <number> --plan <file|-> [flags]\n\nFlags:\n")
+		_, _ = fmt.Fprint(fs.Output(), "Usage: okf-operator gate --knowledge-repo owner/name --pr <number> --plan <file|-> [--review <file>] [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
 	kbRepo := fs.String("knowledge-repo", "", "knowledge repo `owner/name` the PR belongs to (required)")
 	pr := fs.Int("pr", 0, "pull request `number` in the knowledge repo (required)")
 	planFile := fs.String("plan", "", "plan JSON `file` of the run that produced the PR, or - for stdin (required)")
+	reviewFile := fs.String("review", "", "result JSON `file` of `okf-operator review` for the same PR head, added as the review rule (optional)")
 	var app github.AppFlags
 	app.Register(fs)
 	if err := parseFlags(fs, args, env.Stdout, env.Stderr); err != nil {
@@ -53,6 +55,12 @@ func runGate(ctx context.Context, env Env, args []string) error {
 	if err != nil {
 		return err
 	}
+	var rv *gate.Review
+	if *reviewFile != "" {
+		if rv, err = readReview(*reviewFile); err != nil {
+			return err
+		}
+	}
 
 	secrets := &github.Secrets{}
 	logger := slog.New(github.NewRedactingHandler(env.Logger.Handler(), secrets))
@@ -75,11 +83,26 @@ func runGate(ctx context.Context, env Env, args []string) error {
 	r, err := gate.Evaluate(ctx, gate.Deps{
 		Reader:  gate.GitHubReader{Clients: kbClients},
 		Commits: gate.GitHubCommits{Clients: srcClients},
+		Review:  rv,
 	}, *kbRepo, *pr, p)
 	if err != nil {
 		return errors.New(secrets.Redact(err.Error()))
 	}
 	return gate.Encode(env.Stdout, r)
+}
+
+func readReview(file string) (*gate.Review, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, fmt.Errorf("read review: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	r, err := review.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+	in := r.GateInput()
+	return &in, nil
 }
 
 func checkGateFlags(fs *flag.FlagSet, kbRepo string, pr int, planFile string) error {

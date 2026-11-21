@@ -4,6 +4,8 @@ package gate
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"slices"
 )
@@ -19,6 +21,8 @@ const (
 	RuleChangeShape = "change_shape"
 	RuleSize        = "size"
 	RuleLinks       = "links"
+	// RuleReview is the optional LLM review, after every deterministic rule.
+	RuleReview = "review"
 )
 
 // Report is the JSON document `gate` prints. Field order is the output order.
@@ -64,6 +68,24 @@ func (r *Report) Finalize() {
 		res.Pass = res.Pass && len(res.Details) == 0
 		r.Pass = r.Pass && res.Pass
 	}
+}
+
+// Decode reads one report v1. Unknown keys and other versions fail. The
+// decoded Pass is kept as read; callers that act on it call Finalize first.
+func Decode(rd io.Reader) (*Report, error) {
+	dec := json.NewDecoder(rd)
+	dec.DisallowUnknownFields()
+	var r Report
+	if err := dec.Decode(&r); err != nil {
+		return nil, fmt.Errorf("decode gate report: %w", err)
+	}
+	if dec.More() {
+		return nil, errors.New("decode gate report: more than one JSON document")
+	}
+	if r.Version != Version {
+		return nil, fmt.Errorf("gate report version %d is not supported, want %d", r.Version, Version)
+	}
+	return &r, nil
 }
 
 // Encode writes r as indented JSON. The same report always encodes to the same bytes.

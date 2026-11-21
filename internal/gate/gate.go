@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"slices"
 
 	"github.com/gjed/okf-operator/internal/plan"
 )
@@ -15,6 +16,17 @@ const statusRemoved = "removed"
 type Deps struct {
 	Reader  Reader
 	Commits CommitChecker
+	// Review is the optional LLM review of the same PR head. It is appended
+	// after every deterministic rule and can only block.
+	Review *Review
+}
+
+// Review is an LLM review verdict as gate takes it.
+type Review struct {
+	PR      int
+	HeadSHA string
+	Pass    bool
+	Details []string
 }
 
 // Evaluate reads PR n of the knowledge repo, loads the policy from its base
@@ -52,6 +64,12 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 		return nil, err
 	}
 	r.Add(res)
+	if rv := d.Review; rv != nil {
+		if rv.PR != pr.Number || rv.HeadSHA != pr.HeadSHA {
+			return nil, fmt.Errorf("review result is for PR #%d at %s, but %s#%d is at %s", rv.PR, rv.HeadSHA, repo, pr.Number, pr.HeadSHA)
+		}
+		r.Add(Result{Name: RuleReview, Pass: rv.Pass, Details: slices.Clone(rv.Details)})
+	}
 	record(ctx, repo, p, r)
 	return r, nil
 }

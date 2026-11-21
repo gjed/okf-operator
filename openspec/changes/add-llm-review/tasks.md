@@ -15,7 +15,7 @@
 
 ## 4. Gate integration
 
-- [ ] 4.1 Add `gate.Review`, the `review` rule after `links`, `gate.Decode`, and `--review <file>` in `internal/cli/gate.go`. Verify tests: failing deterministic rule plus passing review gives `pass: false`; all deterministic rules passing plus failing review gives `pass: false`; review for another head SHA or PR exits 1; two runs with the same review are byte-identical
+- [x] 4.1 Add `gate.Review`, the `review` rule after `links`, `gate.Decode`, and `--review <file>` in `internal/cli/gate.go`. Verify tests: failing deterministic rule plus passing review gives `pass: false`; all deterministic rules passing plus failing review gives `pass: false`; review for another head SHA or PR exits 1; two runs with the same review are byte-identical
 
 ## 5. Approve and the review App
 

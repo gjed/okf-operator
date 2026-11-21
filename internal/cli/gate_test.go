@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -158,6 +159,74 @@ func TestGateRuntimeErrorsExit1(t *testing.T) {
 				t.Fatalf("exit %d, stdout %q, stderr:\n%s", code, out, errOut)
 			}
 		})
+	}
+}
+
+func writeReview(t *testing.T, pr int, head string, pass bool) string {
+	t.Helper()
+	doc := fmt.Sprintf(`{"version":1,"pr":%d,"head_sha":%q,"model":"r1","pass":%t,
+"pages":[{"path":"product/api.md","pass":%t,"reason":"","unsupported":%s}],"tokens":{"prompt":1,"completion":1}}`,
+		pr, head, pass, pass, map[bool]string{true: `[]`, false: `["Made up."]`}[pass])
+	file := filepath.Join(t.TempDir(), "review.json")
+	if err := os.WriteFile(file, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return file
+}
+
+func TestGateWithReview(t *testing.T) {
+	_, planFile := gateFixture(t)
+	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
+	reviewFile := writeReview(t, 7, gateHead, false)
+	var outs [2]string
+	for i := range outs {
+		code, out, errOut := runCLI(t, BuildInfo{}, gateArgs(planFile, "--review", reviewFile)...)
+		if code != 0 {
+			t.Fatalf("exit %d, stderr:\n%s", code, errOut)
+		}
+		outs[i] = out
+	}
+	if outs[0] != outs[1] {
+		t.Fatalf("reports differ:\n%s\n%s", outs[0], outs[1])
+	}
+	var r struct {
+		Pass  bool `json:"pass"`
+		Rules []struct {
+			Name    string   `json:"name"`
+			Pass    bool     `json:"pass"`
+			Details []string `json:"details"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(outs[0]), &r); err != nil {
+		t.Fatal(err)
+	}
+	last := r.Rules[len(r.Rules)-1]
+	if r.Pass || len(r.Rules) != 7 || last.Name != "review" || last.Pass ||
+		strings.Join(last.Details, "|") != "product/api.md: unsupported: Made up." {
+		t.Fatalf("report = %s", outs[0])
+	}
+}
+
+func TestGateReviewMismatchExit1(t *testing.T) {
+	_, planFile := gateFixture(t)
+	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
+	for name, file := range map[string]string{
+		"other head": writeReview(t, 7, gateBase, true),
+		"other PR":   writeReview(t, 8, gateHead, true),
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, out, errOut := runCLI(t, BuildInfo{}, gateArgs(planFile, "--review", file)...)
+			if code != 1 || out != "" || !strings.Contains(errOut, "review result is for PR") {
+				t.Fatalf("exit %d, stdout %q, stderr:\n%s", code, out, errOut)
+			}
+		})
+	}
+	bad := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(bad, []byte(`{"version":2}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, _ := runCLI(t, BuildInfo{}, gateArgs(planFile, "--review", bad)...); code != 1 || out != "" {
+		t.Fatalf("bad review: exit %d, stdout %q", code, out)
 	}
 }
 
