@@ -39,6 +39,24 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 - **WHEN** the report passes with a passing `review` rule and the head is unchanged
 - **THEN** one `APPROVE` review is posted on the report's `head_sha` and the outcome has `approved: true`
 
+### Requirement: Complete report only
+
+`approve` SHALL post nothing unless the report contains every deterministic gate rule: `provenance`, `routed_set`, `allowlist`, `change_shape`, `size` and `links`. A report missing one SHALL yield `reason: "report_incomplete"`, so removing a failing rule from a report cannot produce an approval.
+
+#### Scenario: Rule removed from the report
+
+- **WHEN** a report passes but has no `size` rule
+- **THEN** nothing is posted and the outcome has `reason: "report_incomplete"`
+
+### Requirement: Stale approvals dismissed
+
+The documentation SHALL state that the knowledge repo's branch protection or ruleset must dismiss stale approvals when new commits are pushed, because an approval posted on one head otherwise keeps counting after `propose` pushes another.
+
+#### Scenario: Setup instructions
+
+- **WHEN** an operator follows the review App setup in `docs/github-app.md`
+- **THEN** it tells them to enable dismissal of stale approvals on push for the knowledge repo
+
 ### Requirement: Approve outcome
 
 `approve` SHALL print one JSON outcome with `version` (1), `pr`, `head_sha`, `approved` and `reason` (empty when approved) and exit 0 whether or not it approved. A GitHub error SHALL exit 1.

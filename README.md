@@ -251,7 +251,7 @@ The reviewer API key comes only from `OKF_REVIEW_MODEL_API_KEY`.
 
 ### approve
 
-`approve` posts the approving review that branch protection counts. GitHub does not let a PR's author approve it, so `approve` signs in as a separate review-only App and reads none of the operator's credentials. It approves only when the gate report passes, contains a passing `review` rule, and the PR head is still the report's `head_sha`, and it approves that commit.
+`approve` posts the approving review that branch protection counts. GitHub does not let a PR's author approve it, so `approve` signs in as a separate review-only App and reads none of the operator's credentials. It approves only when the gate report passes, contains every deterministic rule and a passing `review` rule, and the PR head is still the report's `head_sha`, and it approves that commit. The knowledge repo must dismiss stale approvals when new commits are pushed, or an approval keeps counting after `propose` pushes a new head; see [Dismiss stale approvals](docs/github-app.md#dismiss-stale-approvals).
 
 ```bash
 okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review review.json \
@@ -263,7 +263,7 @@ okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review rev
 {"version": 1, "pr": 12, "head_sha": "4444444444444444444444444444444444444444", "approved": false, "reason": "head_moved"}
 ```
 
-`reason` is `gate_failed`, `review_missing` or `head_moved` when nothing was posted. Either way it exits 0. A report for another PR, an invalid report or a GitHub error exits 1.
+`reason` is `gate_failed`, `report_incomplete`, `review_missing` or `head_moved` when nothing was posted. Either way it exits 0. A report for another PR, an invalid report or a GitHub error exits 1.
 
 | Flag                                               | Description                                                             |
 | -------------------------------------------------- | ----------------------------------------------------------------------- |
