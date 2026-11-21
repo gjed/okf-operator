@@ -192,6 +192,7 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
 | `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`                              |
 | `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)                                |
 | `links`        | Every relative or root-relative link in a changed page resolves to an existing file inside the bundle at the PR head           |
+| `review`       | Only with `--review`: the LLM review passed for the same PR head (see [review](#review))                                       |
 
 `pass` is `true` only when every rule passes. A failed gate still exits 0, so callers branch on `pass`. Exit 1 means the evaluation could not finish (an API failure, a missing or invalid policy, a plan that does not match the base routing map) and prints no report.
 
@@ -200,9 +201,76 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
 | `--knowledge-repo owner/name`        | Knowledge repo the PR belongs to (required)                         |
 | `--pr number`                        | Pull request number (required)                                      |
 | `--plan file`                        | Plan JSON of the run that produced the PR, `-` for stdin (required) |
+| `--review file`                      | `review` result for the same PR head, added as the `review` rule    |
 | `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)     |
 
+A `--review` result for another PR or head SHA exits 1. The review can turn `pass` into `false`, never into `true`.
+
 See [Auto-merge policy](docs/policy.md).
+
+### review
+
+`review` is the advisory LLM review. For each changed Markdown page of a knowledge PR it sends a reviewer model the page at the base, the page at the head and the source diff of the page's planned source paths, and asks whether every changed statement is supported by that diff. Pull request titles and bodies are not sent. It prints a JSON result to stdout and writes nothing.
+
+```bash
+GITHUB_TOKEN=$(gh auth token) \
+OKF_REVIEW_MODEL_BASE_URL=http://localhost:11434/v1 \
+OKF_REVIEW_MODEL=qwen2.5:7b \
+okf-operator review --knowledge-repo acme/kb --pr 12 --plan plan.json > review.json
+```
+
+```json
+{
+  "version": 1,
+  "pr": 12,
+  "head_sha": "4444444444444444444444444444444444444444",
+  "model": "qwen2.5:7b",
+  "pass": false,
+  "pages": [
+    {"path": "product/services/api.md", "pass": false, "reason": "", "unsupported": ["Requests are retried three times."]}
+  ],
+  "tokens": {"prompt": 1840, "completion": 22}
+}
+```
+
+A page fails with a `reason` and no model call when it is removed (`page_removed`), not in the plan (`not_in_plan`), missing a source patch (`patch_unavailable`) or over its budget (`over_budget`). A reply that is not exactly `{"verdict": "supported"|"unsupported", "unsupported": [...]}` fails the page with `reply_invalid`. `pass` is `true` only when at least one page was reviewed and every page passed. A failed review exits 0; a model or GitHub error exits 1 and prints nothing.
+
+The reviewer model is configured apart from the writer and never falls back to the `OKF_MODEL_*` settings. Use a different model from the writer where you can.
+
+| Flag                                 | Description                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `--knowledge-repo owner/name`        | Knowledge repo the PR belongs to (required)                                           |
+| `--pr number`                        | Pull request number (required)                                                        |
+| `--plan file`                        | Plan JSON of the run that produced the PR, `-` for stdin (required)                   |
+| `--review-model-base-url url`        | OpenAI-compatible API base URL of the reviewer (default `$OKF_REVIEW_MODEL_BASE_URL`) |
+| `--review-model name`                | Reviewer model name (default `$OKF_REVIEW_MODEL`)                                     |
+| `--max-tokens-per-page n`            | Most model tokens for the review of one page (default 16000)                          |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                       |
+
+The reviewer API key comes only from `OKF_REVIEW_MODEL_API_KEY`.
+
+### approve
+
+`approve` posts the approving review that branch protection counts. GitHub does not let a PR's author approve it, so `approve` signs in as a separate review-only App and reads none of the operator's credentials. It approves only when the gate report passes, contains a passing `review` rule, and the PR head is still the report's `head_sha`, and it approves that commit.
+
+```bash
+okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review review.json \
+  | OKF_REVIEW_GITHUB_APP_ID=67890 OKF_REVIEW_GITHUB_APP_PRIVATE_KEY_FILE=review.pem \
+    okf-operator approve --knowledge-repo acme/kb --pr 12 --report -
+```
+
+```json
+{"version": 1, "pr": 12, "head_sha": "4444444444444444444444444444444444444444", "approved": false, "reason": "head_moved"}
+```
+
+`reason` is `gate_failed`, `review_missing` or `head_moved` when nothing was posted. Either way it exits 0. A report for another PR, an invalid report or a GitHub error exits 1.
+
+| Flag                                               | Description                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| `--knowledge-repo owner/name`                      | Knowledge repo the PR belongs to (required)                             |
+| `--pr number`                                      | Pull request number (required)                                          |
+| `--report file`                                    | `gate` report, `-` for stdin (required)                                 |
+| `--review-app-id`, `--review-app-private-key-file` | Review App credentials, see [Review App](docs/github-app.md#review-app) |
 
 ### Telemetry
 
