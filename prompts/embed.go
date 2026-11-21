@@ -1,4 +1,4 @@
-// Package prompts holds the model prompts `write` sends. They are embedded at
+// Package prompts holds the model prompts `write` and `review` send. They are embedded at
 // build time, so a given binary always sends the same instructions.
 package prompts
 
@@ -23,3 +23,13 @@ var CreateSystem string
 //
 //go:embed create.md
 var Create string
+
+// ReviewSystem is the system message for every review call.
+//
+//go:embed review-system.md
+var ReviewSystem string
+
+// Review is the text/template for the user message of one review call.
+//
+//go:embed review.md
+var Review string

@@ -2,7 +2,7 @@
 
 ## 1. Shared prompt plumbing
 
-- [ ] 1.1 Move the delimiter neutralisation to `prompts.Neutralise` in `prompts/untrusted.go`, make `write`'s `neutralise` call it, add `prompts/review-system.md` and `prompts/review.md` with their embeds, and verify `go test ./prompts/... ./internal/write/...` passes unchanged
+- [x] 1.1 Move the delimiter neutralisation to `prompts.Neutralise` in `prompts/untrusted.go`, make `write`'s `neutralise` call it, add `prompts/review-system.md` and `prompts/review.md` with their embeds, and verify `go test ./prompts/... ./internal/write/...` passes unchanged
 
 ## 2. Review core
 

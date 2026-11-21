@@ -67,6 +67,4 @@ func render(d promptData) (string, error) {
 
 // neutralise breaks every "<<<" so untrusted text cannot open or close the
 // untrusted block.
-func neutralise(s string) string {
-	return strings.ReplaceAll(s, "<<<", "< < <")
-}
+func neutralise(s string) string { return prompts.Neutralise(s) }
