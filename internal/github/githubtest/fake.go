@@ -52,6 +52,22 @@ type Fake struct {
 	commits       map[string]bool       // "owner/name@sha" -> exists
 	pulls         map[string]Pull       // "owner/name#n" -> pull request
 	pullFiles     map[string][]PullFile // "owner/name#n" -> changed files
+	reviews       map[string][]Review   // "owner/name#n" -> posted reviews
+}
+
+// Review is one recorded POST /repos/{repo}/pulls/{n}/reviews.
+type Review struct {
+	CommitID string `json:"commit_id"`
+	Body     string `json:"body"`
+	Event    string `json:"event"`
+	Auth     string `json:"-"`
+}
+
+// Reviews returns the reviews posted on pull request number n of repo.
+func (f *Fake) Reviews(repo string, n int) []Review {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]Review(nil), f.reviews[repo+"#"+strconv.Itoa(n)]...)
 }
 
 // Pull is the part of a pull request the fake serves.
@@ -130,6 +146,7 @@ func New(t testing.TB) *Fake {
 		commits:           map[string]bool{},
 		pulls:             map[string]Pull{},
 		pullFiles:         map[string][]PullFile{},
+		reviews:           map[string][]Review{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
@@ -153,6 +170,7 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{sha}/pulls", f.commitPullRequests)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}", f.pull)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}/files", f.listPullFiles)
+	mux.HandleFunc("POST /repos/{owner}/{repo}/pulls/{n}/reviews", f.createReview)
 	f.Server = httptest.NewServer(f.record(mux))
 	t.Cleanup(f.Close)
 	return f
@@ -353,6 +371,28 @@ func (f *Fake) listPullFiles(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Link", `<`+f.URL+next.RequestURI()+`>; rel="next"`)
 	}
 	WriteJSON(w, http.StatusOK, append([]PullFile{}, all[start:end]...))
+}
+
+// createReview records a review on a pull request set with SetPull.
+func (f *Fake) createReview(w http.ResponseWriter, r *http.Request) {
+	var rv Review
+	data, _ := io.ReadAll(r.Body)
+	if err := json.Unmarshal(data, &rv); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"message": "Problems parsing JSON"})
+		return
+	}
+	rv.Auth = r.Header.Get("Authorization")
+	f.mu.Lock()
+	_, ok := f.pulls[pullKey(r)]
+	if ok {
+		f.reviews[pullKey(r)] = append(f.reviews[pullKey(r)], rv)
+	}
+	f.mu.Unlock()
+	if !ok {
+		NotFound(w)
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"id": 1, "state": "APPROVED", "commit_id": rv.CommitID})
 }
 
 func (f *Fake) compare(w http.ResponseWriter, r *http.Request) {
