@@ -24,10 +24,17 @@ const Version = 1
 
 // Reasons for not approving.
 const (
-	ReasonGateFailed    = "gate_failed"
-	ReasonReviewMissing = "review_missing"
-	ReasonHeadMoved     = "head_moved"
+	ReasonGateFailed       = "gate_failed"
+	ReasonReportIncomplete = "report_incomplete"
+	ReasonReviewMissing    = "review_missing"
+	ReasonHeadMoved        = "head_moved"
 )
+
+// deterministicRules are the rules every gate report carries. A report
+// without one of them was cut or edited, and is never approved.
+var deterministicRules = []string{
+	gate.RuleProvenance, gate.RuleRoutedSet, gate.RuleAllowlist, gate.RuleChangeShape, gate.RuleSize, gate.RuleLinks,
+}
 
 // Outcome is the JSON document `approve` prints. Field order is the output order.
 type Outcome struct {
@@ -44,8 +51,8 @@ type PullRequests interface {
 	Approve(ctx context.Context, repo string, n int, sha, body string) error
 }
 
-// Run approves PR n of repo when report passes with a passing review rule and
-// the PR head is still the report's head. An error means nothing was decided.
+// Run approves PR n of repo when report passes with every deterministic rule
+// and a passing review rule, and the PR head is still the report's head. An error means nothing was decided.
 func Run(ctx context.Context, prs PullRequests, repo string, n int, report *gate.Report) (*Outcome, error) {
 	if report.PR != n {
 		return nil, fmt.Errorf("gate report is for PR #%d, not #%d", report.PR, n)
@@ -78,7 +85,8 @@ func Run(ctx context.Context, prs PullRequests, repo string, n int, report *gate
 }
 
 // check recomputes pass on a copy of the report, so an edited top-level pass
-// counts for nothing, and requires a passing review rule.
+// counts for nothing, and requires every deterministic rule and a passing
+// review rule to be present.
 func check(report *gate.Report) string {
 	r := gate.Report{Rules: make([]gate.Result, len(report.Rules))}
 	for i, res := range report.Rules {
@@ -89,12 +97,19 @@ func check(report *gate.Report) string {
 	if !report.Pass || !r.Pass {
 		return ReasonGateFailed
 	}
+	names := make(map[string]bool, len(r.Rules))
 	for _, res := range r.Rules {
-		if res.Name == gate.RuleReview && res.Pass {
-			return ""
+		names[res.Name] = true
+	}
+	for _, name := range deterministicRules {
+		if !names[name] {
+			return ReasonReportIncomplete
 		}
 	}
-	return ReasonReviewMissing
+	if !names[gate.RuleReview] {
+		return ReasonReviewMissing
+	}
+	return ""
 }
 
 // Encode writes o as indented JSON.
