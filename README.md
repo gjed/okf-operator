@@ -130,11 +130,14 @@ Run the stages in this order, because a bot PR that is still open holds earlier 
 1. `write` against the same checkout.
 1. `propose` with the commit the checkout is at.
 
+The bot branch's `.kb/routing.yaml` is as old as the bot PR, so routes added on the default branch since then would be missed while the cursor still advances past their changes. Pass the default branch's routing map with `--routing`, as below.
+
 ```bash
 branch=$(gh pr list -R acme/kb --head okf/acme/api --json headRefName --jq '.[0].headRefName // empty')
 git -C kb fetch origin && git -C kb checkout --detach "origin/${branch:-main}"
+git -C kb show origin/main:.kb/routing.yaml > routing.yaml
 
-okf-operator plan --source acme/api --knowledge-repo acme/kb --knowledge-dir ./kb > plan.json
+okf-operator plan --source acme/api --knowledge-repo acme/kb --knowledge-dir ./kb --routing routing.yaml > plan.json
 okf-operator write --plan plan.json --knowledge-dir ./kb > report.json
 okf-operator propose --plan plan.json --report report.json \
   --knowledge-repo acme/kb --knowledge-dir ./kb --knowledge-base "$(git -C kb rev-parse HEAD)"
