@@ -6,8 +6,8 @@
 
 ## 2. Review core
 
-- [ ] 2.1 Implement `internal/review`: result types (version 1), `Encode`, strict `Decode`, `Run` reading the PR through `gate.Reader` and hunks through `plan.GitHubDiffer.Range`, prompt rendering with provenance alignment, strict reply parsing, budget, and `GateInput`. Verify tests against `githubtest` and an httptest model: supported change passes; unsupported sentence fails and is listed; prose, missing key and contradicting replies fail with `reply_invalid`; model HTTP 500 returns an error and no result; a page that tries to instruct the reviewer reaches the model neutralised and is judged by the reply only; missing patch, removed page, page outside the plan and over-budget page fail without a call
-- [ ] 2.2 Add review telemetry and verify a test with in-memory span and metric exporters that asserts the attributes and the `okf.review.pages` and `okf.review.tokens` points
+- [x] 2.1 Implement `internal/review`: result types (version 1), `Encode`, strict `Decode`, `Run` reading the PR through `gate.Reader` and hunks through `plan.GitHubDiffer.Range`, prompt rendering with provenance alignment, strict reply parsing, budget, and `GateInput`. Verify tests against `githubtest` and an httptest model: supported change passes; unsupported sentence fails and is listed; prose, missing key and contradicting replies fail with `reply_invalid`; model HTTP 500 returns an error and no result; a page that tries to instruct the reviewer reaches the model neutralised and is judged by the reply only; missing patch, removed page, page outside the plan and over-budget page fail without a call
+- [x] 2.2 Add review telemetry and verify a test with in-memory span and metric exporters that asserts the attributes and the `okf.review.pages` and `okf.review.tokens` points
 
 ## 3. Review CLI
 
