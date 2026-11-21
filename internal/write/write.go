@@ -469,7 +469,7 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 		if got := pageType(page); got != j.page.Type {
 			return nil, false, fmt.Errorf("the page type is %q but must be %q", got, j.page.Type)
 		}
-		if missing := missingKeys([]byte(j.data.Template), page); len(missing) > 0 {
+		if missing := missingKeys([]byte(strings.ReplaceAll(j.data.Template, "\r\n", "\n")), page); len(missing) > 0 {
 			return nil, false, fmt.Errorf("the reply lacks the template frontmatter keys %s", strings.Join(missing, ", "))
 		}
 		out, err := provenance.Stamp(page, f)

@@ -135,6 +135,11 @@ func TestRunCreateInvalidReply(t *testing.T) {
 			reply:    newPage,
 			wantErr:  "the reply lacks the template frontmatter keys owner",
 		},
+		"template key dropped, CRLF template": {
+			template: "---\r\ntype: concept\r\nowner: \"\"\r\n---\r\n# Title\r\n",
+			reply:    newPage,
+			wantErr:  "the reply lacks the template frontmatter keys owner",
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
