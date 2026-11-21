@@ -8,4 +8,5 @@ var commands = []Command{
 	writeCommand,
 	proposeCommand,
 	gateCommand,
+	reviewCommand,
 }

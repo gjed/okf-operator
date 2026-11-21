@@ -11,7 +11,7 @@
 
 ## 3. Review CLI
 
-- [ ] 3.1 Add `internal/cli/review.go` with the flags, reviewer model settings (no writer fallback), two narrowed providers, and register it. Verify `review -h`, usage errors (missing `--pr`, writer-only model settings exit 2), an end-to-end run printing the result, App-mode token scopes, and a secrets test proving the reviewer key, the writer key, `GITHUB_TOKEN` and App tokens never reach stdout, stderr or spans
+- [x] 3.1 Add `internal/cli/review.go` with the flags, reviewer model settings (no writer fallback), two narrowed providers, and register it. Verify `review -h`, usage errors (missing `--pr`, writer-only model settings exit 2), an end-to-end run printing the result, App-mode token scopes, and a secrets test proving the reviewer key, the writer key, `GITHUB_TOKEN` and App tokens never reach stdout, stderr or spans
 
 ## 4. Gate integration
 
