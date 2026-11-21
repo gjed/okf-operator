@@ -1,0 +1,12 @@
+{
+  "name": "okf-operator-review",
+  "url": "https://github.com/gjed/okf-operator",
+  "description": "Review-only identity of okf-operator: approves knowledge PRs that pass every gate rule, including the LLM review.",
+  "public": false,
+  "default_permissions": {
+    "contents": "read",
+    "metadata": "read",
+    "pull_requests": "write"
+  },
+  "default_events": []
+}

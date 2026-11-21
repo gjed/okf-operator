@@ -21,7 +21,7 @@
 
 - [x] 5.1 Add `CredentialNames` and `LoadNamed` to `internal/github` with `Load` unchanged in behaviour, and verify the existing `internal/github` tests pass plus a test for the review names
 - [x] 5.2 Add the pull request reviews endpoint to `githubtest`, `internal/approve`, `internal/cli/approve.go`, and register it. Verify tests: approval posted on the head SHA; declines for a failed gate, a missing review rule, a hand-edited `pass`, and a moved head; report for another PR exits 1; writer-only credentials exit 2; App-mode token scope; review App secrets never logged
-- [ ] 5.3 Add `deploy/review-app-manifest.json`, document it and `approve` in `docs/github-app.md`, and verify a test that parses the manifest and checks its permissions
+- [x] 5.3 Add `deploy/review-app-manifest.json`, document it and `approve` in `docs/github-app.md`, and verify a test that parses the manifest and checks its permissions
 
 ## 6. Docs and archive
 
