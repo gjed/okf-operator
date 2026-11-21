@@ -39,6 +39,10 @@ A created page is reported with the new result `created`. `propose` needs to kno
 
 Before any GitHub or model call, a create path that exists under `--knowledge-dir` (any file type, including a symlink) fails the run: the plan no longer matches the checkout. In the write phase the page is written to a temporary file and hard-linked to its name, which fails if the name exists, then the temporary file is removed. Missing parent directories are created in the write phase only. Rejected: `rename`, which replaces an existing file.
 
+### Plan on the write checkout
+
+A created page exists only on the bot branch until its PR merges, so `plan` must run against the checkout `write` uses (the open bot PR's branch, else the default branch). Planned against the default branch, the page stays `create` while `write` finds the file and refuses, and the source is stuck until a human merges the PR. The README order becomes: check out, `plan`, `write`, `propose`. Rejected: having `plan` read the bot branch through the API (a second source of page state next to the checkout), and having `write` turn a create with an existing file into an update (the plan would no longer describe what `write` does).
+
 ### Budget
 
 Creates count against `--max-pages` with updates. The output reserve for a create is the template size, in place of the current page size.

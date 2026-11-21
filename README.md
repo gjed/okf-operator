@@ -84,14 +84,14 @@ GITHUB_TOKEN=$(gh auth token) okf-operator plan \
 }
 ```
 
-| Flag                                 | Description                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| `--source owner/name`                | Source repo (required)                                                             |
-| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)                            |
-| `--knowledge-dir path`               | Checkout of the knowledge repo default branch (required)                           |
-| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)                           |
-| `--to sha`                           | End of the range (full 40-character SHA) instead of the source default branch HEAD |
-| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                    |
+| Flag                                 | Description                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| `--source owner/name`                | Source repo (required)                                                                  |
+| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)                                 |
+| `--knowledge-dir path`               | Checkout `write` will use: the open bot PR's branch, else the default branch (required) |
+| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)                                |
+| `--to sha`                           | End of the range (full 40-character SHA) instead of the source default branch HEAD      |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                         |
 
 `plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need `reconcile`. See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
 
@@ -123,19 +123,18 @@ The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1
 
 `propose` commits the pages a `write` report marks `changed` or `created` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
 
-Run the stages in this order, because a bot PR that is still open holds earlier page changes the default branch lacks:
+Run the stages in this order, because a bot PR that is still open holds earlier page changes, including created pages, that the default branch lacks. `plan` and `write` must see the same checkout: a page created in the open bot PR is an `update` there but a `create` on the default branch, and `write` refuses a create whose file exists.
 
-1. `plan` against a checkout of the knowledge repo.
 1. Check out the bot branch if a bot PR for the source is open, otherwise the default branch.
-1. `write` against that checkout.
+1. `plan` against that checkout.
+1. `write` against the same checkout.
 1. `propose` with the commit the checkout is at.
 
 ```bash
-okf-operator plan --source acme/api --knowledge-repo acme/kb --knowledge-dir ./kb > plan.json
-
 branch=$(gh pr list -R acme/kb --head okf/acme/api --json headRefName --jq '.[0].headRefName // empty')
 git -C kb fetch origin && git -C kb checkout --detach "origin/${branch:-main}"
 
+okf-operator plan --source acme/api --knowledge-repo acme/kb --knowledge-dir ./kb > plan.json
 okf-operator write --plan plan.json --knowledge-dir ./kb > report.json
 okf-operator propose --plan plan.json --report report.json \
   --knowledge-repo acme/kb --knowledge-dir ./kb --knowledge-base "$(git -C kb rev-parse HEAD)"

@@ -30,7 +30,7 @@ func runPlan(ctx context.Context, env Env, args []string) error {
 	}
 	source := fs.String("source", "", "source repo `owner/name` (required)")
 	kbRepo := fs.String("knowledge-repo", "", "knowledge repo `owner/name` holding the kb-state branch (required)")
-	kbDir := fs.String("knowledge-dir", "", "`path` to a checkout of the knowledge repo default branch (required)")
+	kbDir := fs.String("knowledge-dir", "", "`path` to the knowledge repo checkout write will use: the open bot PR branch for the source, else the default branch (required)")
 	routingFile := fs.String("routing", "", "routing map `file` (default <knowledge-dir>/"+routing.DefaultPath+")")
 	to := fs.String("to", "", "plan up to this full 40-character commit `sha` instead of the source default branch HEAD")
 	var app github.AppFlags
