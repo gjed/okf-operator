@@ -39,6 +39,7 @@ type PullRequest struct {
 	Title, Body string
 	Head, Base  string // branch names
 	State       string // open or closed
+	MergedAt    string // RFC 3339 merge time of a merged PR, else empty
 }
 
 type gitRepo struct {
@@ -568,14 +569,19 @@ func (f *Fake) updateRef(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Fake) pullJSON(repo string, g *gitRepo, p *PullRequest) map[string]any {
+	var mergedAt any
+	if p.MergedAt != "" {
+		mergedAt = p.MergedAt
+	}
 	return map[string]any{
-		"number":   p.Number,
-		"state":    p.State,
-		"title":    p.Title,
-		"body":     p.Body,
-		"html_url": fmt.Sprintf("%s/%s/pull/%d", f.URL, repo, p.Number),
-		"head":     map[string]any{"ref": p.Head, "sha": g.refs["heads/"+p.Head]},
-		"base":     map[string]any{"ref": p.Base},
+		"merged_at": mergedAt,
+		"number":    p.Number,
+		"state":     p.State,
+		"title":     p.Title,
+		"body":      p.Body,
+		"html_url":  fmt.Sprintf("%s/%s/pull/%d", f.URL, repo, p.Number),
+		"head":      map[string]any{"ref": p.Head, "sha": g.refs["heads/"+p.Head]},
+		"base":      map[string]any{"ref": p.Base},
 	}
 }
 
