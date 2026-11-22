@@ -117,5 +117,12 @@ func runReview(ctx context.Context, env Env, args []string) error {
 	if err != nil {
 		return fail(err)
 	}
+	// A successful reply is model text too: an endpoint that echoes the key in
+	// a sentence must not put it in the result.
+	for i := range r.Pages {
+		for j, s := range r.Pages[i].Unsupported {
+			r.Pages[i].Unsupported[j] = secrets.Redact(s)
+		}
+	}
 	return review.Encode(env.Stdout, r)
 }

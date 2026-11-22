@@ -43,6 +43,11 @@ The model API keys (`OKF_MODEL_API_KEY` and `OKF_REVIEW_MODEL_API_KEY`) SHALL ne
 - **WHEN** `review` runs in App mode with `--log-level debug` and the reviewer endpoint replies 401 with a body containing the reviewer key
 - **THEN** stderr, the recorded spans and stdout contain no occurrence of the reviewer key or of any GitHub token
 
+#### Scenario: Reviewer reply quotes the key
+
+- **WHEN** the reviewer endpoint replies 200 with an unsupported sentence containing the reviewer key
+- **THEN** the review result shows the sentence with the key replaced by `[REDACTED]`
+
 ### Requirement: Separate reviewer model
 
 `review` SHALL use the same client with its own configuration: the base URL from `--review-model-base-url` or `OKF_REVIEW_MODEL_BASE_URL`, the model name from `--review-model` or `OKF_REVIEW_MODEL`, both required, and the API key only from `OKF_REVIEW_MODEL_API_KEY`. `review` SHALL NOT fall back to `OKF_MODEL_BASE_URL`, `OKF_MODEL` or `OKF_MODEL_API_KEY`, and `write` SHALL NOT read the reviewer settings.

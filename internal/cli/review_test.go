@@ -125,6 +125,26 @@ func TestReviewEndToEnd(t *testing.T) {
 	}
 }
 
+// TestReviewKeyEchoedInReplyRedacted checks that a successful reply quoting
+// the reviewer key as an unsupported sentence does not put the key in the result.
+func TestReviewKeyEchoedInReplyRedacted(t *testing.T) {
+	_, planFile := reviewFixture(t)
+	const reviewKey = "sk-review-KEY-0a1b2c3d4e5f6789"
+	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
+	t.Setenv(EnvReviewModelAPIKey, reviewKey)
+	model := newModelStub(t, func(*http.Request) (int, string) {
+		content, _ := json.Marshal(`{"verdict":"unsupported","unsupported":["The key is ` + reviewKey + `."]}`)
+		return http.StatusOK, `{"choices":[{"message":{"role":"assistant","content":` + string(content) + `},"finish_reason":"stop"}]}`
+	})
+	code, out, errOut := runCLI(t, BuildInfo{}, reviewArgs(planFile, model.URL)...)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr:\n%s", code, errOut)
+	}
+	if strings.Contains(out+errOut, reviewKey) || !strings.Contains(out, "The key is [REDACTED].") || !strings.Contains(out, `"pass": false`) {
+		t.Fatalf("result:\n%s\nstderr:\n%s", out, errOut)
+	}
+}
+
 func TestReviewModelErrorExit1(t *testing.T) {
 	_, planFile := reviewFixture(t)
 	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
