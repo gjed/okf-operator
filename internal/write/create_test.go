@@ -21,7 +21,8 @@ func createPage(path, typ string, sources ...string) plan.Page {
 	return plan.Page{Path: path, State: plan.StateCreate, Type: typ, SourcePaths: sources}
 }
 
-// expectedNewPage is newPage after a run with source src/a.go.
+// expectedNewPage is newPage after a run with source src/a.go: a create
+// records its source paths as its routed set.
 func expectedNewPage() string {
 	return "---\ntype: concept\ntitle: New\n" +
 		"source_repo: acme/api\n" +
@@ -29,6 +30,7 @@ func expectedNewPage() string {
 		"source_paths:\n  - src/a.go\n" +
 		"updated_at: 2026-11-18T09:30:00Z\n" +
 		"generated_by: okf-operator/1.2.3/m1\n" +
+		"routed_paths:\n  - src/a.go\n" +
 		"---\n# New\n\nNew does a thing.\n"
 }
 
