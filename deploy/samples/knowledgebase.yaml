@@ -1,0 +1,84 @@
+# A KnowledgeBase, one Source and the Secrets they reference by name. Replace
+# every placeholder; create the Secrets from files rather than committing them:
+#
+#   kubectl -n okf-operator create secret generic knowledge-writer-app \
+#     --from-literal=app-id=12345 --from-file=private-key=writer.pem
+apiVersion: okf.dev/v1alpha1
+kind: KnowledgeBase
+metadata:
+  name: knowledge
+  namespace: okf-operator
+spec:
+  repository: example-org/knowledge
+  writer:
+    appSecretRef:
+      name: knowledge-writer-app
+    model:
+      baseURL: http://ollama.models:11434/v1
+      name: qwen3:8b
+      apiKeySecretRef:
+        name: knowledge-writer-model
+  reviewer:
+    appSecretRef:
+      name: knowledge-review-app
+    model:
+      baseURL: http://ollama.models:11434/v1
+      name: qwen2.5:7b
+      apiKeySecretRef:
+        name: knowledge-review-model
+  webhookSecretRef:
+    name: knowledge-webhook
+---
+apiVersion: okf.dev/v1alpha1
+kind: Source
+metadata:
+  name: api
+  namespace: okf-operator
+spec:
+  repository: example-org/api
+  knowledgeBaseRef:
+    name: knowledge
+  requeueInterval: 1h
+  reconcileInterval: 168h
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knowledge-writer-app
+  namespace: okf-operator
+stringData:
+  app-id: "REPLACE_WITH_WRITER_APP_ID"
+  private-key: REPLACE_WITH_WRITER_APP_PEM
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knowledge-review-app
+  namespace: okf-operator
+stringData:
+  app-id: "REPLACE_WITH_REVIEW_APP_ID"
+  private-key: REPLACE_WITH_REVIEW_APP_PEM
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knowledge-writer-model
+  namespace: okf-operator
+stringData:
+  api-key: REPLACE_WITH_WRITER_MODEL_KEY
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knowledge-review-model
+  namespace: okf-operator
+stringData:
+  api-key: REPLACE_WITH_REVIEW_MODEL_KEY
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: knowledge-webhook
+  namespace: okf-operator
+stringData:
+  secret: REPLACE_WITH_WEBHOOK_SECRET

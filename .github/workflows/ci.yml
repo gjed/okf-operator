@@ -99,8 +99,13 @@ jobs:
         # renovate: datasource=github-releases depName=gotestyourself/gotestsum
         run: go install gotest.tools/gotestsum@v1.13.0
 
+      - name: Install envtest binaries
+        # The controller tests run against a real API server and etcd.
+        run: echo "KUBEBUILDER_ASSETS=$(make -s envtest)" >> "$GITHUB_ENV"
+
       - name: Run tests
         run: |
+          test -n "$KUBEBUILDER_ASSETS"
           gotestsum \
             --junitfile test-results.xml \
             -- \
