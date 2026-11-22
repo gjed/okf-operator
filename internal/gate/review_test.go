@@ -113,6 +113,8 @@ func TestDecodeReport(t *testing.T) {
 		"version 2":     strings.Replace(a.String(), `"version": 1`, `"version": 2`, 1),
 		"unknown field": strings.Replace(a.String(), `"pass"`, `"merge": true, "pass"`, 1),
 		"two documents": a.String() + a.String(),
+		"trailing ]":    a.String() + "]",
+		"trailing }":    a.String() + "}",
 	} {
 		if _, err := Decode(strings.NewReader(doc)); err == nil {
 			t.Errorf("%s: decoded without error", name)

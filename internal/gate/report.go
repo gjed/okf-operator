@@ -79,8 +79,8 @@ func Decode(rd io.Reader) (*Report, error) {
 	if err := dec.Decode(&r); err != nil {
 		return nil, fmt.Errorf("decode gate report: %w", err)
 	}
-	if dec.More() {
-		return nil, errors.New("decode gate report: more than one JSON document")
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, errors.New("decode gate report: trailing data after the JSON document")
 	}
 	if r.Version != Version {
 		return nil, fmt.Errorf("gate report version %d is not supported, want %d", r.Version, Version)
