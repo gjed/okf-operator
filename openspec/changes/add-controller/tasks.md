@@ -16,4 +16,4 @@
 ## 4. Manifests, CI and docs
 
 - [x] 4.1 Add `deploy/` RBAC, Secrets, sample `KnowledgeBase`, `Source` and Deployment, a pinned `setup-envtest` in the Makefile and the CI test job; verify by applying `deploy/crds` and `deploy/controller` on a kind cluster, `pre-commit run` on the manifests and the CI test job
-- [ ] 4.2 Document the controller in `docs/controller.md` (CRDs, webhook events, run order, serialisation, declined ranges, dismissal, metrics), `docs/state.md` and the README; verify the markdown lint passes
+- [x] 4.2 Document the controller in `docs/controller.md` (CRDs, webhook events, run order, serialisation, declined ranges, dismissal, metrics), `docs/state.md` and the README; verify the markdown lint passes

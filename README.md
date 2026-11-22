@@ -6,7 +6,7 @@ A merged pull request starts a run. The run diffs the source repository from the
 
 ## Status
 
-Pre-alpha. Only `version` and `help` exist. The pipeline stages and the controller mode are not implemented yet, and the command line may change without notice.
+Pre-alpha. The pipeline stages and the controller mode exist, and the command line and the custom resources may change without notice.
 
 ## Build
 
@@ -300,6 +300,17 @@ okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review rev
 | `--pr number`                                      | Pull request number (required)                                          |
 | `--report file`                                    | `gate` report, `-` for stdin (required)                                 |
 | `--review-app-id`, `--review-app-private-key-file` | Review App credentials, see [Review App](docs/github-app.md#review-app) |
+
+### controller
+
+`controller` runs the pipeline as a Kubernetes operator for `KnowledgeBase` and `Source` resources (`okf.dev/v1alpha1`). A GitHub webhook only queues the matching `Source`; every run checks out the knowledge repo from the GitHub tarball API, runs `plan` (or `reconcile`, weekly by default), `write` and `propose` in-process, then `gate`, `review` and `approve` for the PR it pushed. A periodic requeue covers lost webhooks, and runs of one knowledge repo never overlap.
+
+```bash
+kubectl apply -f deploy/crds -f deploy/controller
+kubectl apply -f deploy/samples/knowledgebase.yaml   # after replacing the placeholders
+```
+
+See [Controller](docs/controller.md) for the resources, Secrets, webhook events, run order and metrics.
 
 ### Telemetry
 
