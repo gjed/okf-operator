@@ -28,6 +28,7 @@ type promptData struct {
 	PullRequests    []plan.PullRequest
 	PROmitted       int
 	Hunks           []hunk
+	Files           []sourceFile
 	ValidationError string
 }
 
@@ -37,6 +38,11 @@ type reference struct {
 
 type hunk struct {
 	Path, Patch string
+}
+
+// sourceFile is the whole content of one source file at the plan's to.
+type sourceFile struct {
+	Path, Content string
 }
 
 // render fills the page template. Source data is neutralised first, so it can
@@ -51,7 +57,11 @@ func render(d promptData) (string, error) {
 	for i, h := range d.Hunks {
 		hunks[i] = hunk{Path: neutralise(h.Path), Patch: neutralise(h.Patch)}
 	}
-	d.PullRequests, d.Hunks = prs, hunks
+	files := make([]sourceFile, len(d.Files))
+	for i, f := range d.Files {
+		files[i] = sourceFile{Path: neutralise(f.Path), Content: neutralise(f.Content)}
+	}
+	d.PullRequests, d.Hunks, d.Files = prs, hunks, files
 	d.ValidationError = neutralise(d.ValidationError)
 
 	tmpl := pageTemplate

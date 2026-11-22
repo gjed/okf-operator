@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gjed/okf-operator/internal/cursor"
 	"github.com/gjed/okf-operator/internal/model"
 	"github.com/gjed/okf-operator/internal/plan"
 	"github.com/gjed/okf-operator/internal/provenance"
@@ -40,6 +42,7 @@ const (
 	ReasonValidationFailed = "validation_failed"
 	ReasonTemplateMissing  = "template_missing"
 	ReasonPageMissing      = "page_missing"
+	ReasonFileUnavailable  = "file_unavailable"
 )
 
 // NoChange is the reply that tells write the page is still accurate.
@@ -88,6 +91,9 @@ func (t Tokens) total() int { return t.Prompt + t.Completion }
 type Source interface {
 	Range(ctx context.Context, repo, base, head string, paths []string) (plan.Range, error)
 	PullRequests(ctx context.Context, repo string, commits []string) ([]plan.PullRequest, error)
+	// Files returns the content at ref of each path that is a text file of at
+	// most plan.MaxSourceFileBytes. Other paths are absent from the map.
+	Files(ctx context.Context, repo, ref string, paths []string) (map[string]string, error)
 }
 
 // Model completes one prompt. *model.Client implements it.
@@ -115,7 +121,9 @@ type Deps struct {
 	Logger           *slog.Logger
 }
 
-// DecodePlan reads one plan v1 document. Unknown keys and other versions fail.
+// DecodePlan reads one plan document of version 1 (from plan) or 2 (from
+// reconcile). Unknown keys, other versions and a reconcile object that does
+// not match the version or the pages fail.
 func DecodePlan(r io.Reader) (*plan.Plan, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
@@ -126,10 +134,52 @@ func DecodePlan(r io.Reader) (*plan.Plan, error) {
 	if dec.More() {
 		return nil, errors.New("decode plan: more than one JSON document")
 	}
-	if p.Version != plan.Version {
-		return nil, fmt.Errorf("plan version %d is not supported, want %d", p.Version, plan.Version)
+	switch {
+	case p.Version != plan.Version && p.Version != plan.ReconcileVersion:
+		return nil, fmt.Errorf("plan version %d is not supported, want %d or %d", p.Version, plan.Version, plan.ReconcileVersion)
+	case p.Version == plan.Version && p.Reconcile != nil:
+		return nil, fmt.Errorf("decode plan: version %d has no reconcile object", plan.Version)
+	case p.Version == plan.ReconcileVersion && p.Reconcile == nil:
+		return nil, fmt.Errorf("plan version %d is not supported without a reconcile object", plan.ReconcileVersion)
+	case p.Reconcile != nil:
+		if err := checkReconcile(&p); err != nil {
+			return nil, fmt.Errorf("decode plan: %w", err)
+		}
 	}
 	return &p, nil
+}
+
+// checkReconcile checks that the reconcile pages match the plan pages one to
+// one and that each names a known reason and evidence with a fitting base.
+func checkReconcile(p *plan.Plan) error {
+	pages := make(map[string]bool, len(p.Pages))
+	for _, pg := range p.Pages {
+		pages[pg.Path] = true
+	}
+	seen := make(map[string]bool, len(p.Reconcile.Pages))
+	for _, rp := range p.Reconcile.Pages {
+		switch {
+		case !pages[rp.Path]:
+			return fmt.Errorf("reconcile page %s is not a plan page", rp.Path)
+		case seen[rp.Path]:
+			return fmt.Errorf("reconcile page %s is listed twice", rp.Path)
+		case rp.Reason != plan.ReasonBackfill && rp.Reason != plan.ReasonStale && rp.Reason != plan.ReasonRename:
+			return fmt.Errorf("reconcile page %s has unknown reason %q", rp.Path, rp.Reason)
+		case rp.Evidence == plan.EvidenceHunks && !cursor.ValidSHA(rp.Base):
+			return fmt.Errorf("reconcile page %s has evidence hunks but base %q is not a full commit SHA", rp.Path, rp.Base)
+		case rp.Evidence == plan.EvidenceFiles && rp.Base != "":
+			return fmt.Errorf("reconcile page %s has evidence files and a base", rp.Path)
+		case rp.Evidence != plan.EvidenceHunks && rp.Evidence != plan.EvidenceFiles:
+			return fmt.Errorf("reconcile page %s has unknown evidence %q", rp.Path, rp.Evidence)
+		}
+		seen[rp.Path] = true
+	}
+	for _, pg := range p.Pages {
+		if !seen[pg.Path] {
+			return fmt.Errorf("plan page %s has no reconcile entry", pg.Path)
+		}
+	}
+	return nil
 }
 
 // Encode writes r as indented JSON. The same report always encodes to the same bytes.
@@ -145,6 +195,7 @@ type job struct {
 	page    plan.Page
 	create  bool
 	current []byte // the page on disk; nil for a create
+	src     *sourceData
 	data    promptData
 	system  string
 	prompt  string
@@ -226,11 +277,10 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		}
 	}
 
-	src, err := fetchSource(ctx, p, jobs, d)
-	if err != nil {
+	if err := fetchSource(ctx, p, jobs, d); err != nil {
 		return nil, err
 	}
-	if err := prepare(jobs, kb, src, d.MaxTokensPerPage); err != nil {
+	if err := prepare(jobs, kb, d.MaxTokensPerPage); err != nil {
 		return nil, err
 	}
 
@@ -269,35 +319,92 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 	return rep, nil
 }
 
-// sourceData is what the source repo contributes to every prompt of a run.
+// sourceData is what the source repo contributes to the prompts of a group of
+// pages: the patches of one range with its PRs, or whole files (whole).
 type sourceData struct {
+	whole   bool
 	patches map[string]string
+	files   map[string]string
 	prs     []plan.PullRequest
 	omitted int // older PRs left out by capPullRequests
 }
 
-func fetchSource(ctx context.Context, p *plan.Plan, jobs []*job, d Deps) (sourceData, error) {
-	var paths []string
-	for _, j := range jobs {
-		paths = append(paths, j.page.SourcePaths...)
+// fetchSource sets the source data of every job. A version 1 plan has one
+// range with PR context; a reconcile plan has one range per page base, without
+// PR context, and whole files at to for pages with evidence files.
+func fetchSource(ctx context.Context, p *plan.Plan, jobs []*job, d Deps) error {
+	if p.Reconcile == nil {
+		src, err := fetchRange(ctx, p, p.From, jobs, d, true)
+		if err != nil {
+			return err
+		}
+		for _, j := range jobs {
+			j.src = src
+		}
+		return nil
 	}
-	slices.Sort(paths)
-	paths = slices.Compact(paths)
-	rng, err := d.Source.Range(ctx, p.Source, p.From, p.To, paths)
+	byBase := map[string][]*job{}
+	var whole []*job
+	for _, j := range jobs {
+		rp, _ := p.ReconcilePage(j.page.Path)
+		if rp.Evidence == plan.EvidenceFiles {
+			whole = append(whole, j)
+		} else {
+			byBase[rp.Base] = append(byBase[rp.Base], j)
+		}
+	}
+	for _, base := range slices.Sorted(maps.Keys(byBase)) {
+		src, err := fetchRange(ctx, p, base, byBase[base], d, false)
+		if err != nil {
+			return err
+		}
+		for _, j := range byBase[base] {
+			j.src = src
+		}
+	}
+	if len(whole) == 0 {
+		return nil
+	}
+	files, err := d.Source.Files(ctx, p.Source, p.To, sourcePaths(whole))
 	if err != nil {
-		return sourceData{}, err
+		return err
+	}
+	src := &sourceData{whole: true, files: files}
+	for _, j := range whole {
+		j.src = src
+	}
+	return nil
+}
+
+func fetchRange(ctx context.Context, p *plan.Plan, base string, jobs []*job, d Deps, withPRs bool) (*sourceData, error) {
+	rng, err := d.Source.Range(ctx, p.Source, base, p.To, sourcePaths(jobs))
+	if err != nil {
+		return nil, err
+	}
+	if !withPRs {
+		return &sourceData{patches: rng.Patches}, nil
 	}
 	rng.WarnCommitCap(d.Logger, p.Source)
 	prs, err := d.Source.PullRequests(ctx, p.Source, rng.Commits)
 	if err != nil {
-		return sourceData{}, err
+		return nil, err
 	}
 	prs, omitted := capPullRequests(prs, MaxPRContextBytes)
 	if omitted > 0 {
 		d.Logger.InfoContext(ctx, "PR context over its budget: oldest pull requests left out of the prompts",
 			"source", p.Source, "omitted", omitted, "kept", len(prs))
 	}
-	return sourceData{patches: rng.Patches, prs: prs, omitted: omitted}, nil
+	return &sourceData{patches: rng.Patches, prs: prs, omitted: omitted}, nil
+}
+
+// sourcePaths is the sorted union of the jobs' source paths.
+func sourcePaths(jobs []*job) []string {
+	var paths []string
+	for _, j := range jobs {
+		paths = append(paths, j.page.SourcePaths...)
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths)
 }
 
 // MaxPRContextBytes bounds the PR titles and bodies in one prompt, so the
@@ -334,17 +441,28 @@ func checkAbsent(root *os.Root, name string) error {
 }
 
 // prepare renders every first-attempt prompt and checks the budget before any
-// model call. Pages with an unavailable patch, and creates without a
+// model call. Pages with an unavailable patch or file, and creates without a
 // template, are dropped here.
-func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
+func prepare(jobs []*job, kb knowledge, maxTokens int) error {
 	var over []string
 	for _, j := range jobs {
 		if _, ok := kb.templates[j.page.Type]; j.create && !ok {
 			j.result.Result, j.result.Reason = ResultDropped, ReasonTemplateMissing
 			continue
 		}
-		hunks := make([]hunk, 0, len(j.page.SourcePaths))
+		src := j.src
+		var hunks []hunk
+		var files []sourceFile
 		for _, sp := range j.page.SourcePaths {
+			if src.whole {
+				content, ok := src.files[sp]
+				if !ok {
+					j.result.Result, j.result.Reason = ResultDropped, ReasonFileUnavailable
+					break
+				}
+				files = append(files, sourceFile{Path: sp, Content: content})
+				continue
+			}
 			patch, ok := src.patches[sp]
 			if !ok {
 				j.result.Result, j.result.Reason = ResultDropped, ReasonPatchUnavailable
@@ -361,6 +479,7 @@ func prepare(jobs []*job, kb knowledge, src sourceData, maxTokens int) error {
 			PullRequests: src.prs,
 			PROmitted:    src.omitted,
 			Hunks:        hunks,
+			Files:        files,
 		}
 		if j.create {
 			j.system = createSystemPrompt

@@ -17,8 +17,12 @@ import (
 	"github.com/gjed/okf-operator/internal/routing"
 )
 
-// Version is the plan JSON contract version.
+// Version is the plan JSON contract version `plan` prints.
 const Version = 1
+
+// ReconcileVersion is the plan JSON contract version `reconcile` prints:
+// version 1 plus the Reconcile object.
+const ReconcileVersion = 2
 
 // Page states.
 const (
@@ -39,6 +43,66 @@ type Plan struct {
 	Pages        []Page        `json:"pages"`
 	Unrouted     []string      `json:"unrouted"`
 	Excluded     []string      `json:"excluded"`
+	// Reconcile is set in version 2 plans only.
+	Reconcile *Reconcile `json:"reconcile,omitempty"`
+}
+
+// Cursor states of a reconcile plan, relative to its to.
+const (
+	CursorMissing  = "missing"
+	CursorHead     = "head"
+	CursorAncestor = "ancestor"
+	CursorDiverged = "diverged"
+)
+
+// Reasons a reconcile plan plans a page.
+const (
+	ReasonBackfill = "backfill"
+	ReasonStale    = "stale"
+	ReasonRename   = "rename"
+)
+
+// Evidence kinds of a reconcile page.
+const (
+	EvidenceHunks = "hunks"
+	EvidenceFiles = "files"
+)
+
+// Reconcile is what a version 2 plan adds to version 1.
+type Reconcile struct {
+	Cursor             string              `json:"cursor"`
+	Pages              []ReconcilePage     `json:"pages"`
+	DeletionCandidates []DeletionCandidate `json:"deletion_candidates"`
+}
+
+// ReconcilePage says why a page is planned and what write sends as evidence:
+// the compare patches of Base..to, or the whole source files at to.
+type ReconcilePage struct {
+	Path     string `json:"path"`
+	Reason   string `json:"reason"`
+	Evidence string `json:"evidence"`
+	Base     string `json:"base"`
+}
+
+// DeletionCandidate is a page whose routes and source paths match nothing at
+// to. It is reported for a human and never deleted.
+type DeletionCandidate struct {
+	Path        string   `json:"path"`
+	SourceSHA   string   `json:"source_sha"`
+	SourcePaths []string `json:"source_paths"`
+}
+
+// ReconcilePage returns the reconcile entry of page path, if any.
+func (p *Plan) ReconcilePage(path string) (ReconcilePage, bool) {
+	if p.Reconcile == nil {
+		return ReconcilePage{}, false
+	}
+	for _, rp := range p.Reconcile.Pages {
+		if rp.Path == path {
+			return rp, true
+		}
+	}
+	return ReconcilePage{}, false
 }
 
 // ChangedPath is one file changed in the range, as the compare API reports it.

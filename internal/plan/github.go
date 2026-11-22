@@ -115,6 +115,41 @@ func (r Range) WarnCommitCap(log *slog.Logger, repo string) {
 	}
 }
 
+// MaxSourceFileBytes is the largest source file Files returns.
+const MaxSourceFileBytes = 64 << 10
+
+// Files reads each path at ref through the contents API and returns the text
+// files of at most MaxSourceFileBytes. A path that is missing, not a regular
+// file, larger, not valid UTF-8 or holding a NUL byte is absent from the map:
+// a file is returned whole or not at all. It makes one API call per path.
+func (g GitHubDiffer) Files(ctx context.Context, repo, ref string, paths []string) (map[string]string, error) {
+	owner, name, _ := strings.Cut(repo, "/")
+	c, err := g.Clients.ClientFor(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, p := range paths {
+		fc, _, _, err := c.Repositories.GetContents(ctx, owner, name, p, &gogithub.RepositoryContentGetOptions{Ref: ref})
+		if github.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read %s@%s:%s: %w", repo, ref, p, err)
+		}
+		if fc == nil || fc.GetType() != "file" || fc.GetSize() > MaxSourceFileBytes {
+			continue
+		}
+		// Files over 1 MB come without content (encoding "none") and fail here.
+		s, err := fc.GetContent()
+		if err != nil || len(s) > MaxSourceFileBytes || !utf8.ValidString(s) || strings.ContainsRune(s, 0) {
+			continue
+		}
+		out[p] = s
+	}
+	return out, nil
+}
+
 // MaxPRBodyBytes caps each pull request body in the source context.
 const MaxPRBodyBytes = 4096
 
