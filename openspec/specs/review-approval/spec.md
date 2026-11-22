@@ -8,7 +8,7 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 
 ### Requirement: Approve inputs
 
-`approve` SHALL take `--knowledge-repo owner/name`, `--pr <number>` and `--report <file|->`, where `--report` is a `gate` report (version 1) and `-` reads it from stdin. A report with unknown fields, trailing data or another version SHALL exit 1. A report whose `pr` differs from `--pr` SHALL exit 1. A missing or malformed flag SHALL exit 2.
+`approve` SHALL take `--knowledge-repo owner/name`, `--pr <number>` and `--report <file|->`, where `--report` is a `gate` report (version 2) and `-` reads it from stdin. A report with unknown fields, trailing data or another version SHALL exit 1. A report whose `knowledge_repo` or `pr` differs from `--knowledge-repo` or `--pr` SHALL exit 1. A missing or malformed flag SHALL exit 2.
 
 #### Scenario: Report for another PR
 
@@ -17,7 +17,7 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 
 ### Requirement: Approve only a passing, reviewed, current head
 
-`approve` SHALL post an approving pull request review only when the report's `pass`, recomputed as the conjunction of its rules, is true, the report contains a `review` rule that passes, and the PR's current head SHA equals the report's `head_sha`. The review SHALL be posted for that commit. Otherwise it SHALL post nothing.
+`approve` SHALL post an approving pull request review only when the report's `pass`, recomputed as the conjunction of its rules, is true, the report contains a `review` rule that passes, and the PR's current head SHA and base branch tip equal the report's `head_sha` and `base_sha`. The review SHALL be posted for that commit. Otherwise it SHALL post nothing.
 
 #### Scenario: Gate failed
 
@@ -33,6 +33,11 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 
 - **WHEN** the PR head differs from the report's `head_sha`
 - **THEN** nothing is posted and the outcome has `reason: "head_moved"`
+
+#### Scenario: Base moved
+
+- **WHEN** the head is unchanged but the PR's base branch tip differs from the report's `base_sha`
+- **THEN** nothing is posted and the outcome has `reason: "base_moved"`
 
 #### Scenario: Approval
 

@@ -13,7 +13,8 @@ import (
 	"github.com/gjed/okf-operator/internal/github/githubtest"
 )
 
-const passingReport = `{"version":1,"pr":7,"head_sha":"2222222222222222222222222222222222222222","pass":true,"rules":[
+const passingReport = `{"version":2,"knowledge_repo":"acme/kb","pr":7,"head_sha":"2222222222222222222222222222222222222222",
+"base_sha":"1111111111111111111111111111111111111111","plan_digest":"sha256:4f1b","pass":true,"rules":[
 {"name":"provenance","pass":true,"details":[]},{"name":"routed_set","pass":true,"details":[]},
 {"name":"allowlist","pass":true,"details":[]},{"name":"change_shape","pass":true,"details":[]},
 {"name":"size","pass":true,"details":[]},
@@ -24,6 +25,7 @@ const passingReport = `{"version":1,"pr":7,"head_sha":"2222222222222222222222222
 func approveFixture(t *testing.T, report string) (*githubtest.Fake, string) {
 	t.Helper()
 	fake := githubtest.New(t)
+	fake.SetRepo("acme/kb", "main", gateBase)
 	fake.SetPull("acme/kb", 7, githubtest.Pull{Head: gateHead, BaseRef: "main"})
 	file := filepath.Join(t.TempDir(), "report.json")
 	if err := os.WriteFile(file, []byte(report), 0o600); err != nil {
@@ -96,17 +98,22 @@ func TestApproveDeclines(t *testing.T) {
 	tests := []struct {
 		name, report, reason string
 		head                 string
+		base                 string // base branch tip; empty means the report's
 	}{
-		{"gate failed", strings.Replace(passingReport, `"pass":true,"rules"`, `"pass":false,"rules"`, 1), "gate_failed", gateHead},
-		{"edited pass", strings.Replace(passingReport, `"links","pass":true,"details":[]`, `"links","pass":false,"details":["x"]`, 1), "gate_failed", gateHead},
-		{"review missing", strings.Replace(passingReport, `,{"name":"review","pass":true,"details":[]}`, ``, 1), "review_missing", gateHead},
-		{"rule removed", strings.Replace(passingReport, `{"name":"size","pass":true,"details":[]},`, ``, 1), "report_incomplete", gateHead},
-		{"head moved", passingReport, "head_moved", gateBase},
+		{"gate failed", strings.Replace(passingReport, `"pass":true,"rules"`, `"pass":false,"rules"`, 1), "gate_failed", gateHead, ""},
+		{"edited pass", strings.Replace(passingReport, `"links","pass":true,"details":[]`, `"links","pass":false,"details":["x"]`, 1), "gate_failed", gateHead, ""},
+		{"review missing", strings.Replace(passingReport, `,{"name":"review","pass":true,"details":[]}`, ``, 1), "review_missing", gateHead, ""},
+		{"rule removed", strings.Replace(passingReport, `{"name":"size","pass":true,"details":[]},`, ``, 1), "report_incomplete", gateHead, ""},
+		{"head moved", passingReport, "head_moved", gateBase, ""},
+		{"base moved", passingReport, "base_moved", gateHead, "4444444444444444444444444444444444444444"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake, file := approveFixture(t, tt.report)
 			fake.SetPull("acme/kb", 7, githubtest.Pull{Head: tt.head, BaseRef: "main"})
+			if tt.base != "" {
+				fake.SetRepo("acme/kb", "main", tt.base)
+			}
 			t.Setenv(EnvReviewToken, "ghp_reviewToken0123456789")
 			code, out, errOut := runCLI(t, BuildInfo{}, approveArgs(file)...)
 			if code != 0 {
@@ -125,7 +132,8 @@ func TestApproveDeclines(t *testing.T) {
 func TestApproveRuntimeErrorsExit1(t *testing.T) {
 	for name, report := range map[string]string{
 		"other PR":      strings.Replace(passingReport, `"pr":7`, `"pr":8`, 1),
-		"version 2":     strings.Replace(passingReport, `"version":1`, `"version":2`, 1),
+		"version 1":     strings.Replace(passingReport, `"version":2`, `"version":1`, 1),
+		"other repo":    strings.Replace(passingReport, `"knowledge_repo":"acme/kb"`, `"knowledge_repo":"acme/other"`, 1),
 		"unknown field": strings.Replace(passingReport, `"pass":true,"rules"`, `"pass":true,"merge":true,"rules"`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {

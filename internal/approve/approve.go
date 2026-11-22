@@ -28,6 +28,7 @@ const (
 	ReasonReportIncomplete = "report_incomplete"
 	ReasonReviewMissing    = "review_missing"
 	ReasonHeadMoved        = "head_moved"
+	ReasonBaseMoved        = "base_moved"
 )
 
 // deterministicRules are the rules every gate report carries. A report
@@ -45,27 +46,32 @@ type Outcome struct {
 	Reason   string `json:"reason"`
 }
 
-// PullRequests reads a PR head and posts an approving review.
+// PullRequests reads a PR's head and base tip and posts an approving review.
 type PullRequests interface {
-	Head(ctx context.Context, repo string, n int) (string, error)
+	// State returns the PR's head SHA and its base branch tip.
+	State(ctx context.Context, repo string, n int) (head, base string, err error)
 	Approve(ctx context.Context, repo string, n int, sha, body string) error
 }
 
 // Run approves PR n of repo when report passes with every deterministic rule
-// and a passing review rule, and the PR head is still the report's head. An error means nothing was decided.
+// and a passing review rule, and the PR head and base branch tip are still the
+// ones the report evaluated. An error means nothing was decided.
 func Run(ctx context.Context, prs PullRequests, repo string, n int, report *gate.Report) (*Outcome, error) {
-	if report.PR != n {
-		return nil, fmt.Errorf("gate report is for PR #%d, not #%d", report.PR, n)
+	if report.KnowledgeRepo != repo || report.PR != n {
+		return nil, fmt.Errorf("gate report is for %s#%d, not %s#%d", report.KnowledgeRepo, report.PR, repo, n)
 	}
 	out := &Outcome{Version: Version, PR: n, HeadSHA: report.HeadSHA}
 	out.Reason = check(report)
 	if out.Reason == "" {
-		head, err := prs.Head(ctx, repo, n)
+		head, base, err := prs.State(ctx, repo, n)
 		if err != nil {
 			return nil, err
 		}
-		if head != report.HeadSHA {
+		switch {
+		case head != report.HeadSHA:
 			out.Reason = ReasonHeadMoved
+		case base != report.BaseSHA:
+			out.Reason = ReasonBaseMoved
 		}
 	}
 	if out.Reason == "" {
@@ -128,18 +134,24 @@ type GitHub struct {
 	Clients github.Clients
 }
 
-// Head returns the PR's current head SHA.
-func (g GitHub) Head(ctx context.Context, repo string, n int) (string, error) {
+// State returns the PR's current head SHA and its base branch tip, resolved
+// the way gate resolves it.
+func (g GitHub) State(ctx context.Context, repo string, n int) (string, string, error) {
 	owner, name, _ := strings.Cut(repo, "/")
 	c, err := g.Clients.ClientFor(ctx, owner)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	pr, _, err := c.PullRequests.Get(ctx, owner, name, n)
 	if err != nil {
-		return "", fmt.Errorf("get %s#%d: %w", repo, n, err)
+		return "", "", fmt.Errorf("get %s#%d: %w", repo, n, err)
 	}
-	return pr.GetHead().GetSHA(), nil
+	ref := pr.GetBase().GetRef()
+	base, _, err := c.Repositories.GetCommitSHA1(ctx, owner, name, ref, "")
+	if err != nil {
+		return "", "", fmt.Errorf("resolve %s@%s: %w", repo, ref, err)
+	}
+	return pr.GetHead().GetSHA(), base, nil
 }
 
 // Approve posts an APPROVE review on commit sha.

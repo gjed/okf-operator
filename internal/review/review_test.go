@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 )
 
 func TestSupportedChangePasses(t *testing.T) {
@@ -19,6 +20,13 @@ func TestSupportedChangePasses(t *testing.T) {
 	want := []Page{{Path: apiPath, Pass: true, Unsupported: []string{}}}
 	if !r.Pass || r.PR != prNumber || r.HeadSHA != headSHA || r.Model != "reviewer" || !reflect.DeepEqual(r.Pages, want) {
 		t.Fatalf("result = %+v", r)
+	}
+	digest, err := plan.Digest(f.plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.KnowledgeRepo != kbRepo || r.BaseSHA != baseSHA || r.PlanDigest != digest {
+		t.Errorf("binding = %q %q %q, want %q %q %q", r.KnowledgeRepo, r.BaseSHA, r.PlanDigest, kbRepo, baseSHA, digest)
 	}
 	if r.Tokens != (Tokens{Prompt: 100, Completion: 10}) {
 		t.Errorf("tokens = %+v", r.Tokens)

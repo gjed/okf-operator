@@ -1,7 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
+  "knowledge_repo": "acme/kb",
   "pr": 42,
   "head_sha": "2222222222222222222222222222222222222222",
+  "base_sha": "1111111111111111111111111111111111111111",
+  "plan_digest": "sha256:4f1b",
   "pass": false,
   "rules": [
     {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/gjed/okf-operator/internal/plan"
 )
@@ -21,12 +23,16 @@ type Deps struct {
 	Review *Review
 }
 
-// Review is an LLM review verdict as gate takes it.
+// Review is an LLM review verdict as gate takes it, with the inputs it was
+// made for.
 type Review struct {
-	PR      int
-	HeadSHA string
-	Pass    bool
-	Details []string
+	KnowledgeRepo string
+	PR            int
+	HeadSHA       string
+	BaseSHA       string
+	PlanDigest    string
+	Pass          bool
+	Details       []string
 }
 
 // Evaluate reads PR n of the knowledge repo, loads the policy from its base
@@ -46,7 +52,11 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 		return nil, err
 	}
 
-	r := &Report{Version: Version, PR: pr.Number, HeadSHA: pr.HeadSHA, Rules: []Result{}}
+	digest, err := plan.Digest(p)
+	if err != nil {
+		return nil, err
+	}
+	r := &Report{Version: Version, KnowledgeRepo: repo, PR: pr.Number, HeadSHA: pr.HeadSHA, BaseSHA: pr.BaseSHA, PlanDigest: digest, Rules: []Result{}}
 	res, err := provenanceRule(ctx, d.Commits, p.Source, p.To, pages)
 	if err != nil {
 		return nil, err
@@ -65,13 +75,34 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 	}
 	r.Add(res)
 	if rv := d.Review; rv != nil {
-		if rv.PR != pr.Number || rv.HeadSHA != pr.HeadSHA {
-			return nil, fmt.Errorf("review result is for PR #%d at %s, but %s#%d is at %s", rv.PR, rv.HeadSHA, repo, pr.Number, pr.HeadSHA)
+		if err := matchReview(rv, r); err != nil {
+			return nil, err
 		}
 		r.Add(Result{Name: RuleReview, Pass: rv.Pass, Details: slices.Clone(rv.Details)})
 	}
 	record(ctx, repo, p, r)
 	return r, nil
+}
+
+// matchReview fails unless the review was made for exactly what r evaluates:
+// the same repo, PR, head, base and plan.
+func matchReview(rv *Review, r *Report) error {
+	var diffs []string
+	for _, f := range []struct{ name, got, want string }{
+		{"knowledge_repo", rv.KnowledgeRepo, r.KnowledgeRepo},
+		{"pr", strconv.Itoa(rv.PR), strconv.Itoa(r.PR)},
+		{"head_sha", rv.HeadSHA, r.HeadSHA},
+		{"base_sha", rv.BaseSHA, r.BaseSHA},
+		{"plan_digest", rv.PlanDigest, r.PlanDigest},
+	} {
+		if f.got != f.want {
+			diffs = append(diffs, fmt.Sprintf("%s %q, want %q", f.name, f.got, f.want))
+		}
+	}
+	if len(diffs) > 0 {
+		return fmt.Errorf("review result is for other inputs than this gate run: %s", strings.Join(diffs, "; "))
+	}
+	return nil
 }
 
 // headPages reads every changed Markdown page that still exists at the head

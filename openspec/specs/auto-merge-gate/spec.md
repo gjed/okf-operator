@@ -144,7 +144,7 @@ The `links` rule SHALL pass only when every relative link in every changed page 
 
 ### Requirement: JSON report
 
-`gate` SHALL print one JSON report to stdout with `version` (1), `pr`, `head_sha`, `pass` and `rules`. Each rule entry SHALL have `name`, `pass` and `details`, a sorted list of strings that is empty when the rule passes. Every rule SHALL be evaluated and reported even when an earlier rule fails, in the fixed order `provenance`, `routed_set`, `allowlist`, `change_shape`, `size`, `links`, followed by `review` when `--review` is set.
+`gate` SHALL print one JSON report to stdout with `version` (2), `knowledge_repo`, `pr`, `head_sha`, `base_sha`, `plan_digest`, `pass` and `rules`. Each rule entry SHALL have `name`, `pass` and `details`, a sorted list of strings that is empty when the rule passes. Every rule SHALL be evaluated and reported even when an earlier rule fails, in the fixed order `provenance`, `routed_set`, `allowlist`, `change_shape`, `size`, `links`, followed by `review` when `--review` is set.
 
 #### Scenario: One rule fails
 
@@ -155,6 +155,15 @@ The `links` rule SHALL pass only when every relative link in every changed page 
 
 - **WHEN** `gate` runs with `--review`
 - **THEN** the report lists seven rules and the last one is `review`
+
+### Requirement: Report binding
+
+The report SHALL name what it evaluated: `knowledge_repo` as passed to `--knowledge-repo`, `base_sha` the base commit the configuration was read at, and `plan_digest` the string `sha256:` followed by the hex SHA-256 of the plan's canonical JSON encoding, which is the same for any formatting of the same plan.
+
+#### Scenario: Reformatted plan
+
+- **WHEN** `gate` runs twice with the same plan, once compact and once indented
+- **THEN** both reports have the same `plan_digest`
 
 ### Requirement: Later inputs can only block
 
@@ -208,9 +217,14 @@ A completed evaluation SHALL exit 0 whether `pass` is `true` or `false`, so call
 
 ### Requirement: Review matches the PR
 
-A review result with unknown fields, trailing data or another version, or whose `pr` or `head_sha` differs from the PR under evaluation, SHALL fail the run (exit 1) and print no report.
+A review result with unknown fields, trailing data or another version, or whose `knowledge_repo`, `pr`, `head_sha`, `base_sha` or `plan_digest` differs from what `gate` evaluates, SHALL fail the run (exit 1) and print no report.
 
 #### Scenario: Review for another head
 
 - **WHEN** `gate` runs with a review result whose `head_sha` differs from the PR's head
+- **THEN** `gate` exits 1 and prints no report
+
+#### Scenario: Review for another plan
+
+- **WHEN** `gate` runs with a review result made against a plan whose digest differs from the plan passed to `gate`
 - **THEN** `gate` exits 1 and prints no report

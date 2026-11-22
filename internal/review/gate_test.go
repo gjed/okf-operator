@@ -13,8 +13,8 @@ func TestGateInput(t *testing.T) {
 		r    Result
 		want gate.Review
 	}{
-		{"pass", Result{PR: 7, HeadSHA: "h", Pass: true, Pages: []Page{{Path: "a.md", Pass: true}}},
-			gate.Review{PR: 7, HeadSHA: "h", Pass: true, Details: []string{}}},
+		{"pass", Result{KnowledgeRepo: "acme/kb", PR: 7, HeadSHA: "h", BaseSHA: "b", PlanDigest: "sha256:p", Pass: true, Pages: []Page{{Path: "a.md", Pass: true}}},
+			gate.Review{KnowledgeRepo: "acme/kb", PR: 7, HeadSHA: "h", BaseSHA: "b", PlanDigest: "sha256:p", Pass: true, Details: []string{}}},
 		{"failures", Result{PR: 7, HeadSHA: "h", Pages: []Page{
 			{Path: "a.md", Reason: ReasonPatchUnavailable},
 			{Path: "b.md", Unsupported: []string{"x", "y"}},

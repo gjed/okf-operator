@@ -109,12 +109,21 @@ A reply that is not exactly that object, a `verdict` that contradicts the list, 
 
 ### Requirement: JSON review result
 
-`review` SHALL print one JSON result to stdout with `version` (1), `pr`, `head_sha`, `model`, `pass`, `pages` and `tokens` (`prompt`, `completion`). Each page entry SHALL have `path`, `pass`, `reason` (empty when the model reviewed the page) and `unsupported`, a sorted list of strings. Pages SHALL be sorted by path. The top-level `pass` SHALL be true only when at least one page was reviewed and every page passes.
+`review` SHALL print one JSON result to stdout with `version` (1), `knowledge_repo`, `pr`, `head_sha`, `base_sha`, `plan_digest`, `model`, `pass`, `pages` and `tokens` (`prompt`, `completion`). Each page entry SHALL have `path`, `pass`, `reason` (empty when the model reviewed the page) and `unsupported`, a sorted list of strings. Pages SHALL be sorted by path. The top-level `pass` SHALL be true only when at least one page was reviewed and every page passes.
 
 #### Scenario: No changed page
 
 - **WHEN** the PR changes no Markdown file
 - **THEN** the result has an empty `pages` and `pass: false`
+
+### Requirement: Result binding
+
+The result SHALL name what was reviewed: `knowledge_repo` as passed to `--knowledge-repo`, `base_sha` the base commit the pages before were read at, and `plan_digest` computed as in the gate report, so `gate` can refuse a review made for other inputs.
+
+#### Scenario: Bound result
+
+- **WHEN** `review` completes for PR 7 of `acme/kb`
+- **THEN** the result has `knowledge_repo: "acme/kb"`, the PR's base tip as `base_sha` and the plan's digest as `plan_digest`
 
 ### Requirement: Review never edits and only blocks
 

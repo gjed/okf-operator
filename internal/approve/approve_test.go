@@ -11,15 +11,24 @@ import (
 	"github.com/gjed/okf-operator/internal/gate"
 )
 
-const head = "2222222222222222222222222222222222222222"
+const (
+	head = "2222222222222222222222222222222222222222"
+	base = "1111111111111111111111111111111111111111"
+)
 
 type fakePRs struct {
-	head     string
-	headErr  error
-	approved []string
+	head, base string
+	headErr    error
+	approved   []string
 }
 
-func (f *fakePRs) Head(context.Context, string, int) (string, error) { return f.head, f.headErr }
+func (f *fakePRs) State(context.Context, string, int) (string, string, error) {
+	b := f.base
+	if b == "" {
+		b = base
+	}
+	return f.head, b, f.headErr
+}
 
 func (f *fakePRs) Approve(_ context.Context, _ string, _ int, sha, _ string) error {
 	f.approved = append(f.approved, sha)
@@ -27,7 +36,7 @@ func (f *fakePRs) Approve(_ context.Context, _ string, _ int, sha, _ string) err
 }
 
 func report(pass bool, rules ...gate.Result) *gate.Report {
-	return &gate.Report{Version: gate.Version, PR: 7, HeadSHA: head, Pass: pass, Rules: rules}
+	return &gate.Report{Version: gate.Version, KnowledgeRepo: "acme/kb", PR: 7, HeadSHA: head, BaseSHA: base, PlanDigest: "sha256:x", Pass: pass, Rules: rules}
 }
 
 func rule(name string, pass bool, details ...string) gate.Result {
@@ -52,20 +61,22 @@ func TestRun(t *testing.T) {
 		name     string
 		report   *gate.Report
 		head     string
+		base     string
 		approved bool
 		reason   string
 	}{
-		{"approval", report(true, rules(links, review)...), head, true, ""},
-		{"gate failed", report(false, rules(rule(gate.RuleLinks, false, "x"), review)...), head, false, ReasonGateFailed},
-		{"edited pass", report(true, rules(rule(gate.RuleLinks, true, "broken link"), review)...), head, false, ReasonGateFailed},
-		{"deterministic rule removed", report(true, links, review), head, false, ReasonReportIncomplete},
-		{"review missing", report(true, rules()...), head, false, ReasonReviewMissing},
-		{"rule repeated", report(true, append(rules(links, review), review)...), head, false, ReasonReportIncomplete},
-		{"head moved", report(true, rules(links, review)...), "3333333333333333333333333333333333333333", false, ReasonHeadMoved},
+		{"approval", report(true, rules(links, review)...), head, "", true, ""},
+		{"gate failed", report(false, rules(rule(gate.RuleLinks, false, "x"), review)...), head, "", false, ReasonGateFailed},
+		{"edited pass", report(true, rules(rule(gate.RuleLinks, true, "broken link"), review)...), head, "", false, ReasonGateFailed},
+		{"deterministic rule removed", report(true, links, review), head, "", false, ReasonReportIncomplete},
+		{"review missing", report(true, rules()...), head, "", false, ReasonReviewMissing},
+		{"rule repeated", report(true, append(rules(links, review), review)...), head, "", false, ReasonReportIncomplete},
+		{"head moved", report(true, rules(links, review)...), "3333333333333333333333333333333333333333", "", false, ReasonHeadMoved},
+		{"base moved", report(true, rules(links, review)...), head, "4444444444444444444444444444444444444444", false, ReasonBaseMoved},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prs := &fakePRs{head: tt.head}
+			prs := &fakePRs{head: tt.head, base: tt.base}
 			out, err := Run(context.Background(), prs, "acme/kb", 7, tt.report)
 			if err != nil {
 				t.Fatal(err)
@@ -88,6 +99,9 @@ func TestRunErrors(t *testing.T) {
 	ok := report(true, rules(rule(gate.RuleLinks, true), rule(gate.RuleReview, true))...)
 	if _, err := Run(context.Background(), &fakePRs{head: head}, "acme/kb", 8, ok); err == nil {
 		t.Error("report for another PR: no error")
+	}
+	if _, err := Run(context.Background(), &fakePRs{head: head}, "acme/other", 7, ok); err == nil {
+		t.Error("report for another repo: no error")
 	}
 	prs := &fakePRs{headErr: errors.New("boom")}
 	if _, err := Run(context.Background(), prs, "acme/kb", 7, ok); err == nil || len(prs.approved) != 0 {
