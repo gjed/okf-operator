@@ -169,9 +169,12 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "knowledge_repo": "acme/kb",
   "pr": 12,
   "head_sha": "4444444444444444444444444444444444444444",
+  "base_sha": "3333333333333333333333333333333333333333",
+  "plan_digest": "sha256:bf42e82d4fbd46a95a7c2496e05d6fc0a52caec15ab89e991b3a75eb3d326576",
   "pass": false,
   "rules": [
     {"name": "provenance", "pass": true, "details": []},
@@ -204,7 +207,7 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
 | `--review file`                      | `review` result for the same PR head, added as the `review` rule    |
 | `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)     |
 
-A `--review` result for another PR or head SHA exits 1. The review can turn `pass` into `false`, never into `true`.
+A `--review` result for another knowledge repo, PR, head SHA, base SHA or plan (`plan_digest`) exits 1. The review can turn `pass` into `false`, never into `true`.
 
 See [Auto-merge policy](docs/policy.md).
 
@@ -222,8 +225,11 @@ okf-operator review --knowledge-repo acme/kb --pr 12 --plan plan.json > review.j
 ```json
 {
   "version": 1,
+  "knowledge_repo": "acme/kb",
   "pr": 12,
   "head_sha": "4444444444444444444444444444444444444444",
+  "base_sha": "3333333333333333333333333333333333333333",
+  "plan_digest": "sha256:bf42e82d4fbd46a95a7c2496e05d6fc0a52caec15ab89e991b3a75eb3d326576",
   "model": "qwen2.5:7b",
   "pass": false,
   "pages": [
@@ -263,7 +269,7 @@ okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review rev
 {"version": 1, "pr": 12, "head_sha": "4444444444444444444444444444444444444444", "approved": false, "reason": "head_moved"}
 ```
 
-`reason` is `gate_failed`, `report_incomplete`, `review_missing` or `head_moved` when nothing was posted. Either way it exits 0. A report for another PR, an invalid report or a GitHub error exits 1.
+`reason` is `gate_failed`, `report_incomplete`, `review_missing`, `head_moved` or `base_moved` (the base branch tip is no longer the `base_sha` the gate evaluated) when nothing was posted. Either way it exits 0. A report for another repo or PR, an invalid report or a GitHub error exits 1.
 
 | Flag                                               | Description                                                             |
 | -------------------------------------------------- | ----------------------------------------------------------------------- |
