@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -125,17 +126,26 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo := e.Repository.FullName
+	// The filters apply per knowledge base: one knowledge base's knowledge
+	// repo may be a source of another that shares the webhook secret.
+	var keep []v1alpha1.KnowledgeBase
+	reason := ""
 	for _, kb := range kbs {
 		key := kb.Namespace + "/" + kb.Name
 		switch {
 		case strings.EqualFold(repo, kb.Spec.Repository):
-			w.drop(ctx, rw, http.StatusAccepted, DropKnowledgeRepo)
-			return
+			reason = cmp.Or(reason, DropKnowledgeRepo)
 		case e.Sender.Login != "" && w.Tracker.IsBot(key, e.Sender.Login):
-			w.drop(ctx, rw, http.StatusAccepted, DropBot)
-			return
+			reason = cmp.Or(reason, DropBot)
+		default:
+			keep = append(keep, kb)
 		}
 	}
+	if len(keep) == 0 {
+		w.drop(ctx, rw, http.StatusAccepted, reason)
+		return
+	}
+	kbs = keep
 	if !e.enqueues(name) {
 		w.drop(ctx, rw, http.StatusAccepted, DropIgnored)
 		return
