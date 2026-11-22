@@ -55,6 +55,8 @@ func TestParseAndStampErrors(t *testing.T) {
 		{name: "updated_at is not a timestamp", page: "---\nupdated_at: yesterday\n---\n"},
 		{name: "updated_at is a number", page: "---\nupdated_at: 42\n---\n"},
 		{name: "repeated provenance key", page: "---\nsource_sha: a\nsource_sha: b\n---\n"},
+		{name: "routed_paths is a string", page: "---\nrouted_paths: src/a.go\n---\n"},
+		{name: "repeated routed_paths", page: "---\nrouted_paths: []\nrouted_paths: []\n---\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,6 +87,7 @@ func TestParseAbsentKeysAreZero(t *testing.T) {
 	}{
 		{name: "empty frontmatter", page: "---\n---\nbody\n"},
 		{name: "no provenance keys", page: "---\ntitle: Hello\n---\nbody\n"},
+		{name: "null routed_paths is unknown", page: "---\nrouted_paths:\n---\nbody\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -139,6 +142,11 @@ func TestStampSemantics(t *testing.T) {
 			page:      "---\n---\n",
 			wantOrder: []string{KeySourceRepo, KeySourceSHA, KeySourcePaths, KeyUpdatedAt, KeyGeneratedBy},
 		},
+		{
+			name:      "unknown routed set removes a model-written routed_paths",
+			page:      "---\nrouted_paths: [src/fake.go]\nowner: team-a\n---\n",
+			wantOrder: []string{"owner", KeySourceRepo, KeySourceSHA, KeySourcePaths, KeyUpdatedAt, KeyGeneratedBy},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -181,6 +189,16 @@ func TestStampParseRoundTrip(t *testing.T) {
 			name:   "no source paths",
 			page:   "---\n---\n" + body,
 			fields: Fields{SourceRepo: "a/b", SourceSHA: "abc", UpdatedAt: sampleTime, GeneratedBy: "okf-operator/1/m"},
+		},
+		{
+			name:   "routed paths",
+			page:   "---\nrouted_paths: [src/fake.go]\n---\n" + body,
+			fields: Fields{SourceRepo: "a/b", SourceSHA: "abc", SourcePaths: []string{"x"}, RoutedPaths: []string{"w", "x"}},
+		},
+		{
+			name:   "empty routed paths stay known",
+			page:   "---\n---\n" + body,
+			fields: Fields{SourceRepo: "a/b", RoutedPaths: []string{}},
 		},
 		{
 			name:   "sub-second and non-UTC time normalised",
