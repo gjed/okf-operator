@@ -4,7 +4,7 @@
 
 ### Requirement: Widened routes
 
-An existing routed page with a recorded `routed_paths`, a `source_sha` that equals `to` or is an ancestor of it, and a path routed to it at `to` that is absent from `routed_paths` and unchanged since `source_sha` SHALL be planned as `update` with reason `widened`, evidence `files` and no `base`. Its `source_paths` SHALL be those new paths plus the paths routed to it at `to` that changed since `source_sha`. Reason `widened` SHALL take precedence over `stale` and `rename`.
+An existing routed page with a recorded `routed_paths`, a `source_sha` that equals `to` or is an ancestor of it, and a path routed to it at `to` that is absent from `routed_paths` and unchanged since `source_sha` SHALL be planned as `update` with reason `widened`, evidence `files` and no `base`. Its `source_paths` SHALL be those new paths plus the paths routed to it at `to` that changed since `source_sha`.
 
 #### Scenario: Route widened to an unchanged file
 
@@ -20,6 +20,15 @@ An existing routed page with a recorded `routed_paths`, a `source_sha` that equa
 
 - **WHEN** a page records `routed_paths: [src/a.go]` and `src/b.go`, routed to it, was added since its `source_sha`
 - **THEN** the page is planned with reason `stale`, evidence `hunks` and `src/b.go` in `source_paths`
+
+### Requirement: Widened routes wait for deletions
+
+Reason `widened` SHALL take precedence over `stale` and `rename`, except when a path routed to the page was removed or renamed away since `source_sha`. The page SHALL then be planned as `stale` or `rename` with evidence `hunks`, and its entry's `routed_paths` SHALL omit the new paths, so a later run plans them as `widened`.
+
+#### Scenario: Reflected file removed while the route widened
+
+- **WHEN** a page records `routed_paths: [src/a.go, src/c.go]`, `src/c.go` was removed since its `source_sha`, and its route now also matches the unchanged `src/b.go`
+- **THEN** the page is planned with reason `stale`, evidence `hunks` and `source_paths: [src/c.go]`, and its entry has `routed_paths: [src/a.go]`
 
 ### Requirement: Pages without routed paths
 
@@ -43,7 +52,7 @@ A page whose `source_sha` equals `to`, or whose routed paths did not change sinc
 
 ### Requirement: Reconcile page entries
 
-`reconcile.pages` SHALL hold one entry per plan page with its `path`, `reason` (`backfill`, `stale`, `rename` or `widened`), `evidence`, `base` (empty for evidence `files`) and `routed_paths`, the paths routed to the page at `to`. All lists SHALL be sorted, and the same inputs SHALL produce byte-identical output.
+`reconcile.pages` SHALL hold one entry per plan page with its `path`, `reason` (`backfill`, `stale`, `rename` or `widened`), `evidence`, `base` (empty for evidence `files`) and `routed_paths`, the paths routed to the page at `to` less the new paths of a widened route that waits for a deletion. All lists SHALL be sorted, and the same inputs SHALL produce byte-identical output.
 
 #### Scenario: Repeated run
 
