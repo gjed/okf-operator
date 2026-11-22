@@ -27,7 +27,7 @@ export GITHUB_TOKEN=$(gh auth token)
 
 ### Create the App
 
-1. Create a GitHub App under the organisation (Settings, Developer settings, GitHub Apps). No webhook is needed for the CLI.
+1. Create a GitHub App under the organisation (Settings, Developer settings, GitHub Apps). No webhook is needed for the CLI; for the [controller](controller.md#webhooks), subscribe to **Push** and **Pull requests**.
 1. Grant the repository permissions below.
 1. Generate a private key and store the downloaded PEM file as a secret.
 1. Install the App on the source repos and the knowledge repo.

@@ -1,0 +1,146 @@
+# Controller
+
+`okf-operator controller` runs the pipeline as a Kubernetes operator. It is level-triggered: a GitHub webhook only queues a `Source`, every run diffs from the cursor on `kb-state` to the source HEAD, and a periodic requeue covers lost events. There is no event bus and no workflow engine.
+
+## Install
+
+```bash
+kubectl apply -f deploy/crds -f deploy/controller
+```
+
+[`deploy/controller`](../deploy/controller) holds the `okf-operator` namespace, a one-replica Deployment, the webhook Service and RBAC. Pin the image to a release tag. [`deploy/samples`](../deploy/samples/knowledgebase.yaml) is a `KnowledgeBase`, a `Source` and the Secrets they reference.
+
+| Flag                          | Default | Description                                                           |
+| ----------------------------- | ------- | --------------------------------------------------------------------- |
+| `--webhook-bind-address`      | `:8080` | Webhook receiver, `POST /webhook`                                     |
+| `--health-probe-bind-address` | `:8081` | `/healthz` and `/readyz`                                              |
+| `--leader-elect`              | `true`  | One active replica through a Lease                                    |
+| `--leader-election-namespace` | Pod's   | Namespace of the Lease                                                |
+| `--namespace`                 | all     | Watch only this namespace                                             |
+| `--concurrency`               | `4`     | Most Sources run at once; Sources of one knowledge repo never overlap |
+
+`GITHUB_API_URL` overrides the GitHub API base URL. Telemetry uses the `OTEL_*` variables, as for every command.
+
+## Resources
+
+Group `okf.dev`, version `v1alpha1`. Both kinds are namespaced; a `Source` refers to a `KnowledgeBase` in its own namespace.
+
+```yaml
+apiVersion: okf.dev/v1alpha1
+kind: KnowledgeBase
+metadata:
+  name: knowledge
+spec:
+  repository: example-org/knowledge
+  writer:
+    appSecretRef: {name: knowledge-writer-app}
+    model:
+      baseURL: http://ollama.models:11434/v1
+      name: qwen3:8b
+      apiKeySecretRef: {name: knowledge-writer-model}   # optional
+  reviewer:
+    appSecretRef: {name: knowledge-review-app}
+    model:
+      baseURL: http://ollama.models:11434/v1
+      name: qwen2.5:7b
+  webhookSecretRef: {name: knowledge-webhook}
+---
+apiVersion: okf.dev/v1alpha1
+kind: Source
+metadata:
+  name: api
+spec:
+  repository: example-org/api
+  knowledgeBaseRef: {name: knowledge}
+  requeueInterval: 1h       # default
+  reconcileInterval: 168h   # default, weekly; 0s disables
+```
+
+Secrets are referenced by name only and hold fixed keys:
+
+| Secret                  | Keys                    |
+| ----------------------- | ----------------------- |
+| `writer.appSecretRef`   | `app-id`, `private-key` |
+| `reviewer.appSecretRef` | `app-id`, `private-key` |
+| `model.apiKeySecretRef` | `api-key`               |
+| `webhookSecretRef`      | `secret`                |
+
+The controller reads Secrets with `get` only, uncached, so its Role can list them by `resourceNames`. Repeat `okf-operator-secrets` from [`rbac.yaml`](../deploy/controller/rbac.yaml) in every namespace that holds a `KnowledgeBase`.
+
+### Source status
+
+| Field               | Meaning                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `conditions[Ready]` | `True` after a successful run; `False` with reason `<Stage>Failed` and the redacted error |
+| `lastRunTime`       | When the last run finished                                                                |
+| `lastRunMode`       | `plan` or `reconcile`                                                                     |
+| `lastCursor`        | The commit the cursor held after the last run, as `propose` reported it                   |
+| `lastPR`            | Number and URL of the bot PR                                                              |
+| `lastError`         | The redacted error of the last run, empty after a success                                 |
+| `lastReconcileTime` | When the last successful reconcile run started                                            |
+
+`lastCursor` is informational: every run reads the cursor from `kb-state`. Every run also records a `RunSucceeded` or `RunFailed` event on the `Source`.
+
+Failure stages: `knowledgebase`, `credentials`, `declined`, `checkout`, `routing`, `plan`, `reconcile`, `write`, `propose`, `gate`, `review`, `approve`, `dismiss`.
+
+## Webhooks
+
+Point the writer App's webhook, or a repository webhook on each source repo, at the `okf-operator-webhook` Service's `/webhook` path through your ingress, with the secret in the `webhookSecretRef` Secret and the **Push** and **Pull requests** events.
+
+1. Bodies over 5 MiB answer 413.
+1. `X-Hub-Signature-256` is checked with HMAC-SHA256, in constant time, against the webhook secret of every `KnowledgeBase`. A missing header or no match answers 401 and queues nothing. Several knowledge bases may share one secret.
+1. An event from the knowledge repo of a matching knowledge base, or sent by the writer or review App's bot user, is dropped.
+1. Only `push` to the default branch and `pull_request` `closed` with `merged: true` into the default branch queue anything, `ping` included.
+1. The queued `Source`s are those of the event's repository whose knowledge base's secret matched. Anything that queues nothing answers 202.
+
+The bot logins come from `GET /app` and are learned on each knowledge base's first run. The receiver runs on the leader only.
+
+## A run
+
+1. Read the writer App Secret and the writer model key.
+1. Record declined bot PRs, see [Operator state](state.md#declined-ranges).
+1. Find the open bot PR. The checkout commit is its head, else the default branch head.
+1. Download that commit with `GET /repos/{owner}/{repo}/tarball/{sha}` into a temporary directory, removed after the run. The image has no git.
+1. Read `.kb/routing.yaml` from the default branch head, as the README asks CLI users to pass with `--routing`: the bot branch's copy is as old as its PR.
+1. `plan`, or `reconcile` when `reconcileInterval` has passed since the last reconcile run (or since the `Source` was created).
+1. `write` against the checkout, then `propose` with the checkout commit as the knowledge base.
+1. Only for a `plan` run whose `propose` opened or updated the PR: `gate` without the review. If it passes, read the review App Secret and the reviewer model key, run `review`, `gate` with the review result, and `approve` with the review App.
+
+The deterministic gate runs first, so a PR that can never auto-merge costs no reviewer tokens. A reconcile PR always goes to a human, and a run whose `propose` pushed nothing does not gate. `review` reads GitHub as the writer App: the review App is installed on the knowledge repo only and is used to approve and dismiss.
+
+The pipeline runs in the controller process. A Job per run is the upgrade path when each step needs its own Secrets.
+
+### Serialisation
+
+Each run holds an in-memory lock keyed by the lower-cased knowledge repo. A `Source` whose knowledge repo is busy is queued again after 15 seconds, so two `Source`s of one knowledge repo never run at once, even across two `KnowledgeBase`s naming the same repo. Leader election keeps one active replica, and the cursor compare-and-swap in `propose` still fails a run that loses a race.
+
+### Stale approvals
+
+When a gate run on head H fails, the controller dismisses, as the review App, every `APPROVED` review the review App posted on H (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, covered by **Pull requests** write). Branch protection then stops counting an approval of a head whose latest gate failed, which "Dismiss stale pull request approvals" does not do without a new commit.
+
+Publishing the gate result as a required check run was rejected: it needs **Checks** write on the writer App and a check that branch protection must require, next to the approval the review App already posts.
+
+## Telemetry
+
+| Metric                            | Type      | Unit | Attributes                                      |
+| --------------------------------- | --------- | ---- | ----------------------------------------------- |
+| `okf.controller.events.received`  | counter   |      | `okf.controller.event`                          |
+| `okf.controller.events.dropped`   | counter   |      | `okf.controller.reason`                         |
+| `okf.controller.runs.queued`      | counter   |      | `okf.controller.trigger` (`webhook`, `busy`)    |
+| `okf.controller.run.duration`     | histogram | s    | `okf.controller.mode`, `okf.controller.outcome` |
+| `okf.controller.run.failures`     | counter   |      | `okf.controller.stage`, `okf.controller.mode`   |
+| `okf.controller.merge_to_pr`      | histogram | s    |                                                 |
+| `okf.controller.prs.approved`     | counter   |      |                                                 |
+| `okf.controller.cursor.staleness` | gauge     | s    | `okf.source.repo`                               |
+
+Drop reasons: `signature`, `too_large`, `malformed`, `knowledge_repo`, `bot`, `ignored_event`, `no_source`.
+
+`merge_to_pr` is the time from the earliest source PR merge the webhook saw for a `Source` to the run that opened or updated its knowledge PR. `cursor.staleness` is the time since a run last left the cursor at the source HEAD. Both are kept in memory and start over after a restart.
+
+Each run is one `controller run` trace with the source, knowledge repo, mode, outcome, PR and, on failure, the stage. Each stage is a child span named after it, carrying the same attributes as the matching CLI command. Keys, JWTs, installation tokens, webhook secrets and model keys are redacted from logs, events, status and spans.
+
+## Limitations
+
+- GitHub archives honour `export-ignore` and `export-subst`; a knowledge repo that uses them fails `propose`'s checkout check.
+- Declined ranges are read from the PR body, so ranges dropped from a very long body are not recorded.
+- The pending merge times and bot logins live in memory.

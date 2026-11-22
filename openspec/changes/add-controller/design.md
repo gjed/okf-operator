@@ -92,16 +92,16 @@ The controller builds `github.Config` values in memory: `AppConfig` gains a `Key
 
 ### Telemetry
 
-| Metric                             | Type      | Attributes                              |
-| ---------------------------------- | --------- | --------------------------------------- |
-| `okf.controller.events.received`   | counter   | `okf.controller.event`                  |
-| `okf.controller.events.dropped`    | counter   | `okf.controller.reason`                 |
-| `okf.controller.runs.queued`       | counter   | `okf.controller.trigger`                |
-| `okf.controller.run.duration`      | histogram | `okf.controller.mode`, `okf.controller.outcome` |
-| `okf.controller.run.failures`      | counter   | `okf.controller.stage`, `okf.controller.mode`   |
-| `okf.controller.merge_to_pr`       | histogram | none                                    |
-| `okf.controller.prs.approved`      | counter   | none                                    |
-| `okf.controller.cursor.staleness`  | gauge     | `okf.source`                            |
+| Metric                            | Type      | Attributes                                      |
+| --------------------------------- | --------- | ----------------------------------------------- |
+| `okf.controller.events.received`  | counter   | `okf.controller.event`                          |
+| `okf.controller.events.dropped`   | counter   | `okf.controller.reason`                         |
+| `okf.controller.runs.queued`      | counter   | `okf.controller.trigger`                        |
+| `okf.controller.run.duration`     | histogram | `okf.controller.mode`, `okf.controller.outcome` |
+| `okf.controller.run.failures`     | counter   | `okf.controller.stage`, `okf.controller.mode`   |
+| `okf.controller.merge_to_pr`      | histogram | none                                            |
+| `okf.controller.prs.approved`     | counter   | none                                            |
+| `okf.controller.cursor.staleness` | gauge     | `okf.source.repo`                               |
 
 `merge_to_pr` is the time from the earliest source PR merge the webhook saw since the last proposal to the run that opened or updated the knowledge PR. SIMPLIFIED: kept in memory, so a restart loses pending merge times. `cursor.staleness` is the time since the last run that brought the cursor to the source HEAD.
 

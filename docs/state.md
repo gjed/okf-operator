@@ -9,6 +9,9 @@ kb-state
 └── cursors/
     └── <owner>/
         └── <name>     # cursor for source repo <owner>/<name>
+declined/
+└── <owner>/
+    └── <name>         # declined ranges of source repo <owner>/<name>
 ```
 
 ## Cursors
@@ -23,7 +26,7 @@ A cursor is the last source commit the operator processed for one source repo. E
 gh api 'repos/acme/kb/contents/cursors/acme/api?ref=kb-state' --jq .content | base64 -d
 ```
 
-`plan` only reads cursors. `propose` writes and advances them.
+`plan` only reads cursors. `propose` writes and advances them. The controller writes only `declined/`.
 
 ## How plan treats the cursor
 
@@ -66,3 +69,17 @@ A diverged cursor, or a source with no cursor that needs a backfill, goes throug
 | `head`             | Not written; the bot PR still carries the refreshed pages                    |
 
 Unlike an initial `plan`, an initial reconcile plan takes the full `propose` path: checkout checks, commit and bot PR first, cursor last. A run that fails before the cursor write leaves the cursor where it was, so a diverged cursor stays diverged and `plan` keeps exiting 1 until a reconcile run succeeds. A cursor moved by another run after `reconcile` read it fails `propose`; re-run `reconcile`.
+
+## Declined ranges
+
+When a bot PR from `okf/<owner>/<name>` is closed without merging, the next controller run of that source records the source ranges of its body in `declined/<owner>/<name>`. Each `<!-- okf:range FROM..TO -->` marker `propose` wrote becomes one line:
+
+```text
+<pr-number> <from or -> <to>
+```
+
+`-` stands for the empty start of an initial range. Lines are sorted by PR number, each PR is recorded once, and the write is a compare-and-swap on the file, like the cursor; a missing `kb-state` is created the same way. The file is bookkeeping for `reconcile` and for people: it never blocks a later proposal of the same range and never moves the cursor. The controller looks at the 30 most recently updated closed bot PRs of the source on each run.
+
+```bash
+gh api 'repos/acme/kb/contents/declined/acme/api?ref=kb-state' --jq .content | base64 -d
+```
