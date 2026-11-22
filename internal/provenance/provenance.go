@@ -24,6 +24,7 @@ const (
 	KeySourcePaths = "source_paths"
 	KeyUpdatedAt   = "updated_at"
 	KeyGeneratedBy = "generated_by"
+	KeyRoutedPaths = "routed_paths"
 )
 
 // ErrNoFrontmatter reports a page without a closed "---" frontmatter block.
@@ -33,7 +34,7 @@ var ErrNoFrontmatter = errors.New("no frontmatter")
 const delimiter = "---"
 
 // keys lists the provenance keys in the order Stamp appends missing ones.
-var keys = []string{KeySourceRepo, KeySourceSHA, KeySourcePaths, KeyUpdatedAt, KeyGeneratedBy}
+var keys = []string{KeySourceRepo, KeySourceSHA, KeySourcePaths, KeyUpdatedAt, KeyGeneratedBy, KeyRoutedPaths}
 
 // Fields is the provenance a generated page carries.
 type Fields struct {
@@ -42,6 +43,10 @@ type Fields struct {
 	SourcePaths []string  // source_paths, sorted
 	UpdatedAt   time.Time // updated_at, RFC 3339 UTC
 	GeneratedBy string    // generated_by, okf-operator/<version>/<model>
+	// RoutedPaths is routed_paths, sorted: the source files the page reflects
+	// at SourceSHA. It is nil when the key is absent or null (the routed set
+	// is unknown) and non-nil, possibly empty, when it is a list.
+	RoutedPaths []string
 }
 
 // Parse returns the provenance fields of page and the body after its
@@ -101,7 +106,8 @@ func Type(page []byte) (string, error) {
 // provenance keys are replaced in place, missing ones are appended in the
 // order of keys, and every other key keeps its position and value. The body is
 // copied byte for byte. SourcePaths is written in the order given, so callers
-// pass it sorted. Stamp fails like Parse on a page without frontmatter, a
+// pass it sorted, and RoutedPaths likewise; a nil RoutedPaths removes the
+// routed_paths key. Stamp fails like Parse on a page without frontmatter, a
 // malformed frontmatter or a repeated provenance key.
 func Stamp(page []byte, f Fields) ([]byte, error) {
 	fm, body, err := split(page)
@@ -119,6 +125,7 @@ func Stamp(page []byte, f Fields) ([]byte, error) {
 		KeySourcePaths: paths(f.SourcePaths),
 		KeyUpdatedAt:   {Kind: yaml.ScalarNode, Tag: "!!timestamp", Value: f.UpdatedAt.UTC().Format(time.RFC3339)},
 		KeyGeneratedBy: str(f.GeneratedBy),
+		KeyRoutedPaths: paths(f.RoutedPaths),
 	}
 	for _, key := range keys {
 		v, err := lookup(m, key)
@@ -131,10 +138,15 @@ func Stamp(page []byte, f Fields) ([]byte, error) {
 			if err := decode(key, v, &Fields{}); err != nil {
 				return nil, fmt.Errorf("provenance: %s: %w", key, err)
 			}
-			*v = *values[key]
-			continue
 		}
-		m.Content = append(m.Content, str(key), values[key])
+		switch {
+		case key == KeyRoutedPaths && f.RoutedPaths == nil:
+			remove(m, key)
+		case v != nil:
+			*v = *values[key]
+		default:
+			m.Content = append(m.Content, str(key), values[key])
+		}
 	}
 
 	var buf bytes.Buffer
@@ -225,6 +237,16 @@ func lookup(m *yaml.Node, key string) (*yaml.Node, error) {
 	return found, nil
 }
 
+// remove deletes key and its value from mapping m, if present.
+func remove(m *yaml.Node, key string) {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if k := m.Content[i]; k.Kind == yaml.ScalarNode && k.Value == key {
+			m.Content = append(m.Content[:i], m.Content[i+2:]...)
+			return
+		}
+	}
+}
+
 // decode decodes the value node v of provenance key into f.
 func decode(key string, v *yaml.Node, f *Fields) error {
 	switch key {
@@ -248,6 +270,17 @@ func decode(key string, v *yaml.Node, f *Fields) error {
 		return nil
 	case KeyGeneratedBy:
 		return v.Decode(&f.GeneratedBy)
+	case KeyRoutedPaths:
+		var ps []string
+		if err := v.Decode(&ps); err != nil {
+			return err
+		}
+		// A null value is an unknown set, like an absent key.
+		if ps == nil && v.Tag != "!!null" {
+			ps = []string{}
+		}
+		f.RoutedPaths = ps
+		return nil
 	}
 	return nil
 }

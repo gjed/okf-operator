@@ -192,7 +192,7 @@ func missingKeys(current, reply []byte) []string {
 
 var provenanceKey = map[string]bool{
 	provenance.KeySourceRepo: true, provenance.KeySourceSHA: true, provenance.KeySourcePaths: true,
-	provenance.KeyUpdatedAt: true, provenance.KeyGeneratedBy: true,
+	provenance.KeyUpdatedAt: true, provenance.KeyGeneratedBy: true, provenance.KeyRoutedPaths: true,
 }
 
 // frontmatter splits page into the YAML between the opening "---" line and
