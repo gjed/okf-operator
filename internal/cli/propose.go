@@ -32,7 +32,7 @@ func runPropose(ctx context.Context, env Env, args []string) error {
 		_, _ = fmt.Fprint(fs.Output(), "Usage: okf-operator propose --plan <file> --report <file|-> --knowledge-repo owner/name --knowledge-dir <path> --knowledge-base <sha> [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
-	planFile := fs.String("plan", "", "plan JSON `file` from `okf-operator plan` (required)")
+	planFile := fs.String("plan", "", "plan JSON `file` from `okf-operator plan` or `okf-operator reconcile` (required)")
 	reportFile := fs.String("report", "", "write report JSON `file` from `okf-operator write`, or - for stdin (required)")
 	kbRepo := fs.String("knowledge-repo", "", "knowledge repo `owner/name` the PR is opened in (required)")
 	kbDir := fs.String("knowledge-dir", "", "`path` to the knowledge checkout write ran against (required)")

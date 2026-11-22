@@ -6,7 +6,7 @@
 
 ## 2. Propose reads plan version 2
 
-- [ ] 2.1 Make `propose` take the PR flow for every version 2 plan (initial and `from` equal to `to` included), skip the source PR listing, write a reconcile PR body section and commit message with the cursor state, page reasons and deletion candidates, log each candidate, and advance the cursor with the existing compare-and-swap; verify tests for: initial version 2 plan opens the PR then creates the cursor, diverged cursor moved only after the PR update, failed PR call leaves the cursor, deletion candidates in the body and not in the commit
+- [x] 2.1 Make `propose` take the PR flow for every version 2 plan (initial and `from` equal to `to` included), skip the source PR listing, write a reconcile PR body section and commit message with the cursor state, page reasons and deletion candidates, log each candidate, and advance the cursor with the existing compare-and-swap; verify tests for: initial version 2 plan opens the PR then creates the cursor, diverged cursor moved only after the PR update, failed PR call leaves the cursor, deletion candidates in the body and not in the commit
 
 ## 3. Reconcile command
 

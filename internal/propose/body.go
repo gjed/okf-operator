@@ -53,6 +53,46 @@ func section(p *plan.Plan, rep *write.Report, numbers []int, total, listed int) 
 	return b.String()
 }
 
+// reconcileSection describes one reconcile run: the cursor, every page with its
+// write result and reconcile reason, and the deletion candidates.
+func reconcileSection(p *plan.Plan, rep *write.Report) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s%s..%s -->\n### reconcile %s at `%s`\n\n", markerPrefix, p.From, p.To, p.Source, short(p.To))
+	switch p.Reconcile.Cursor {
+	case plan.CursorMissing:
+		fmt.Fprintf(&b, "Cursor: none, anchored at `%s`.\n", short(p.To))
+	case plan.CursorDiverged:
+		fmt.Fprintf(&b, "Cursor: `%s` diverged from the source history, re-anchored at `%s`.\n", short(p.From), short(p.To))
+	case plan.CursorHead:
+		fmt.Fprintf(&b, "Cursor: already at `%s`.\n", short(p.To))
+	default:
+		fmt.Fprintf(&b, "Cursor: moved from `%s` to `%s`.\n", short(p.From), short(p.To))
+	}
+	b.WriteString("\nPages:\n\n")
+	for _, pg := range rep.Pages {
+		rp, _ := p.ReconcilePage(pg.Path)
+		fmt.Fprintf(&b, "- %s: `%s` (%s", pg.Result, pg.Path, rp.Reason)
+		if pg.Reason != "" {
+			fmt.Fprintf(&b, ", %s", pg.Reason)
+		}
+		b.WriteString(")\n")
+	}
+	if len(p.Reconcile.DeletionCandidates) > 0 {
+		fmt.Fprintf(&b, "\nDeletion candidates: no routed source path of these pages exists at `%s`. They were not deleted; remove or reroute them by hand.\n\n", short(p.To))
+		for _, c := range p.Reconcile.DeletionCandidates {
+			fmt.Fprintf(&b, "- `%s`", c.Path)
+			if c.SourceSHA != "" {
+				fmt.Fprintf(&b, " from `%s`", short(c.SourceSHA))
+			}
+			if len(c.SourcePaths) > 0 {
+				fmt.Fprintf(&b, ", source paths `%s`", strings.Join(c.SourcePaths, "`, `"))
+			}
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
 // appendSection adds sec to an existing body. When the result is longer than
 // MaxBody, the oldest sections are dropped and counted in a note; the commit
 // messages keep every range.
