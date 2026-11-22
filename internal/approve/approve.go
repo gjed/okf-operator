@@ -86,7 +86,7 @@ func Run(ctx context.Context, prs PullRequests, repo string, n int, report *gate
 
 // check recomputes pass on a copy of the report, so an edited top-level pass
 // counts for nothing, and requires every deterministic rule and a passing
-// review rule to be present.
+// review rule to be present, each once.
 func check(report *gate.Report) string {
 	r := gate.Report{Rules: make([]gate.Result, len(report.Rules))}
 	for i, res := range report.Rules {
@@ -99,6 +99,9 @@ func check(report *gate.Report) string {
 	}
 	names := make(map[string]bool, len(r.Rules))
 	for _, res := range r.Rules {
+		if names[res.Name] {
+			return ReasonReportIncomplete // gate never repeats a rule
+		}
 		names[res.Name] = true
 	}
 	for _, name := range deterministicRules {

@@ -60,6 +60,7 @@ func TestRun(t *testing.T) {
 		{"edited pass", report(true, rules(rule(gate.RuleLinks, true, "broken link"), review)...), head, false, ReasonGateFailed},
 		{"deterministic rule removed", report(true, links, review), head, false, ReasonReportIncomplete},
 		{"review missing", report(true, rules()...), head, false, ReasonReviewMissing},
+		{"rule repeated", report(true, append(rules(links, review), review)...), head, false, ReasonReportIncomplete},
 		{"head moved", report(true, rules(links, review)...), "3333333333333333333333333333333333333333", false, ReasonHeadMoved},
 	}
 	for _, tt := range tests {
