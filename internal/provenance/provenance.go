@@ -148,7 +148,29 @@ func Stamp(page []byte, f Fields) ([]byte, error) {
 			m.Content = append(m.Content, str(key), values[key])
 		}
 	}
+	return join(doc, body)
+}
 
+// WithoutRoutedPaths returns page without its routed_paths key, or page
+// itself when it has none. It fails like Parse.
+func WithoutRoutedPaths(page []byte) ([]byte, error) {
+	fm, body, err := split(page)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := document(fm)
+	if err != nil {
+		return nil, err
+	}
+	if v, err := lookup(doc.Content[0], KeyRoutedPaths); err != nil || v == nil {
+		return page, err
+	}
+	remove(doc.Content[0], KeyRoutedPaths)
+	return join(doc, body)
+}
+
+// join encodes doc as frontmatter followed by body.
+func join(doc *yaml.Node, body []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)

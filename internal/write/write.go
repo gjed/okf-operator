@@ -207,6 +207,7 @@ type job struct {
 	page    plan.Page
 	create  bool
 	current []byte // the page on disk; nil for a create
+	shown   []byte // current without routed_paths, as the prompt holds it
 	src     *sourceData
 	data    promptData
 	system  string
@@ -221,7 +222,7 @@ func (j *job) reserve() string {
 	if j.create {
 		return j.data.Template
 	}
-	return string(j.current)
+	return string(j.shown)
 }
 
 // Run processes every page of p. Files under d.KnowledgeDir change only when
@@ -286,6 +287,11 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		}
 		if j.current, err = root.ReadFile(j.page.Path); err != nil {
 			return nil, fmt.Errorf("read page %s: %w", j.page.Path, err)
+		}
+		// routed_paths is tool-owned and grows with the route, so it is kept
+		// out of the prompt and the budget; Stamp writes it back.
+		if j.shown, err = provenance.WithoutRoutedPaths(j.current); err != nil {
+			j.shown = j.current
 		}
 	}
 
@@ -541,7 +547,7 @@ func prepare(jobs []*job, kb knowledge, maxTokens int) error {
 			j.data.Type = typ
 			j.data.Template = kb.template(typ)
 			j.data.References = kb.references(typ)
-			j.data.Page = string(j.current)
+			j.data.Page = string(j.shown)
 		}
 		var err error
 		if j.prompt, err = render(j.data); err != nil {

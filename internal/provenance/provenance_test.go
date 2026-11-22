@@ -229,6 +229,25 @@ func TestStampParseRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWithoutRoutedPaths(t *testing.T) {
+	t.Parallel()
+	page := "---\ntitle: x\nrouted_paths: [a, b]\nsource_repo: a/b\n---\nbody\n"
+	out, err := WithoutRoutedPaths([]byte(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "---\ntitle: x\nsource_repo: a/b\n---\nbody\n"; string(out) != want {
+		t.Errorf("out = %q, want %q", out, want)
+	}
+	plain := "---\ntitle:   x\n---\nbody\n"
+	if out, err := WithoutRoutedPaths([]byte(plain)); err != nil || string(out) != plain {
+		t.Errorf("page without routed_paths = %q, %v; want it unchanged", out, err)
+	}
+	if _, err := WithoutRoutedPaths([]byte("# no frontmatter\n")); !errors.Is(err, ErrNoFrontmatter) {
+		t.Errorf("err = %v, want ErrNoFrontmatter", err)
+	}
+}
+
 func TestStampKeepsBodyByteIdentical(t *testing.T) {
 	t.Parallel()
 	body := []byte("line\r\nwith CRLF\n---\ntrailing spaces   \n")
