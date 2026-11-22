@@ -301,6 +301,22 @@ func TestFailures(t *testing.T) {
 			t.Fatalf("err = %v, want an error naming the page", err)
 		}
 	})
+	t.Run("cursor ahead of to", func(t *testing.T) {
+		f := newFixture(t, oneRoute, "src/a.go")
+		f.cursor(cursorX)
+		f.compare(cursorX, "behind")
+		if _, err := f.build(t.Context()); !errors.Is(err, ErrRollback) {
+			t.Fatalf("err = %v, want ErrRollback", err)
+		}
+	})
+	t.Run("page ahead of to", func(t *testing.T) {
+		f := newFixture(t, oneRoute, "src/a.go")
+		f.page("product/a.md", generated(testSource, baseB, "src/a.go"))
+		f.compare(baseB, "behind")
+		if _, err := f.build(t.Context()); !errors.Is(err, ErrRollback) || !strings.Contains(err.Error(), "product/a.md") {
+			t.Fatalf("err = %v, want ErrRollback naming the page", err)
+		}
+	})
 	t.Run("compare error", func(t *testing.T) {
 		f := newFixture(t, oneRoute, "src/a.go")
 		f.page("product/a.md", generated(testSource, baseB, "src/a.go"))

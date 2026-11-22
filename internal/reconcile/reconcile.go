@@ -24,6 +24,7 @@ import (
 var (
 	ErrNotOnboarded = errors.New("source is not in the routing map")
 	ErrTruncated    = errors.New("source tree listing is truncated: a partial tree would report routed pages as gone")
+	ErrRollback     = errors.New("reconcile never moves the cursor or a page back to an older commit: pass a later --to")
 )
 
 // TreeLister lists a source repo's files.
@@ -118,6 +119,8 @@ func Build(ctx context.Context, source, to string, d Deps) (*plan.Plan, error) {
 		p.Reconcile.Cursor = plan.CursorHead
 	default:
 		switch c := compare(from); {
+		case errors.Is(c.err, plan.ErrBehind):
+			return nil, fmt.Errorf("cursor %s is ahead of %s: %w", from, p.To, ErrRollback)
 		case errors.Is(c.err, plan.ErrDiverged):
 			p.Reconcile.Cursor = plan.CursorDiverged
 			d.Logger.WarnContext(ctx, "cursor diverged: propose re-anchors it at the reconciled commit", "source", src.Repo, "cursor", from, "to", p.To)
@@ -190,6 +193,8 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 	}
 	c := compare(base)
 	switch {
+	case errors.Is(c.err, plan.ErrBehind):
+		return nil, fmt.Errorf("page %s: source_sha %s is ahead of %s: %w", path, base, to, ErrRollback)
 	case errors.Is(c.err, plan.ErrDiverged):
 		return whole(plan.StateUpdate, plan.ReasonBackfill), nil
 	case errors.Is(c.err, plan.ErrIncomplete):

@@ -44,7 +44,7 @@ Defines the `reconcile` subcommand: for one source repo, it plans every routed k
 
 ### Requirement: Backfill without a usable base
 
-A routed page that does not exist SHALL be planned as `create` when its route has a `type`, otherwise as `missing`. An existing routed page without frontmatter, without `source_sha`, with another `source_repo`, or whose `source_sha` is not an ancestor of `to` SHALL be planned as `update`. These pages SHALL have reason `backfill`, evidence `files` and as `source_paths` their routed paths at `to`.
+A routed page that does not exist SHALL be planned as `create` when its route has a `type`, otherwise as `missing`. An existing routed page without frontmatter, without `source_sha`, with another `source_repo`, or whose `source_sha` has diverged from `to` SHALL be planned as `update`. These pages SHALL have reason `backfill`, evidence `files` and as `source_paths` their routed paths at `to`.
 
 #### Scenario: Backfill without cursor or pages
 
@@ -74,6 +74,15 @@ When the compare of a stale page's `base..to` lists 300 or more files, the page 
 - **WHEN** a page's `source_sha` is an ancestor of `to` and the compare lists 300 files
 - **THEN** the page is planned with evidence `files` and `reconcile` exits 0
 
+### Requirement: No rollback
+
+`reconcile` SHALL exit 1 without a plan when the cursor, or the `source_sha` of a page it considers, is a descendant of `to`, so it never moves the cursor or a page back to an older commit.
+
+#### Scenario: End commit older than the cursor
+
+- **WHEN** `--to` names an ancestor of the cursor
+- **THEN** `reconcile` exits 1 and prints no plan
+
 ### Requirement: Current pages are left out
 
 A page whose `source_sha` equals `to`, or whose routed paths did not change since its `source_sha`, SHALL NOT be planned.
@@ -98,7 +107,7 @@ An existing page whose routes match no file at `to` and whose provenance `source
 
 #### Scenario: Diverged cursor
 
-- **WHEN** the cursor is not an ancestor of `to`
+- **WHEN** the cursor has diverged from `to`
 - **THEN** the plan has `from` equal to the cursor, `initial: false` and `reconcile.cursor: "diverged"`
 
 ### Requirement: Reconcile page entries

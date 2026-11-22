@@ -18,11 +18,13 @@ The pages considered are the route targets of the source and every `.md` page of
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Routed files exist, page missing                                             | `create` (route has a `type`) or `missing`, reason `backfill`, evidence `files` |
 | Routed files exist, page has no frontmatter, no `source_sha` or another repo | `update`, reason `backfill`, evidence `files`                                   |
-| `source_sha` is not an ancestor of `to`                                      | `update`, reason `backfill`, evidence `files`                                   |
+| `source_sha` has diverged from `to`                                          | `update`, reason `backfill`, evidence `files`                                   |
 | `source_sha` is an ancestor and routed files changed since                   | `update`, reason `stale` (or `rename`), evidence `hunks` from `source_sha`      |
 | As above, but the compare lists 300 or more files                            | `update`, reason `stale`, evidence `files`                                      |
 | `source_sha` equals `to`, or no routed file changed since                    | Not planned                                                                     |
 | No route matches a file at `to` and none of its `source_paths` exists        | Deletion candidate                                                              |
+
+A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor.
 
 Reason `rename` means the compare reports one of the page's `source_paths` as the previous name of a renamed file. A route target whose frontmatter is malformed exits 1; other malformed bundle pages are skipped with a log line.
 
@@ -56,11 +58,11 @@ Reason `rename` means the compare reports one of the page's `source_paths` as th
 
 Every version 1 key keeps its meaning. `from` is the cursor `reconcile` read, empty when there is none, and `initial` is true exactly then. `changed_paths`, `unrouted` and `excluded` are always empty. The `reconcile` object holds:
 
-| Key                   | Meaning                                                                                       |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `cursor`              | `missing`, `head` (at `to`), `ancestor` (behind `to`) or `diverged` (not an ancestor of `to`) |
-| `pages`               | One entry per plan page: `reason` (`backfill`, `stale`, `rename`), `evidence`, `base`         |
-| `deletion_candidates` | Pages whose sources are gone, with their `source_sha` and `source_paths`                      |
+| Key                   | Meaning                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------- |
+| `cursor`              | `missing`, `head` (at `to`), `ancestor` (behind `to`) or `diverged` (diverged from `to`) |
+| `pages`               | One entry per plan page: `reason` (`backfill`, `stale`, `rename`), `evidence`, `base`    |
+| `deletion_candidates` | Pages whose sources are gone, with their `source_sha` and `source_paths`                 |
 
 `evidence: hunks` makes `write` send the compare patches of `base..to` for the page's `source_paths`. `evidence: files` makes it send the whole files at `to` instead; see [Writing pages](write.md#reconcile-plans). Version 2 prompts carry no source PR context.
 
