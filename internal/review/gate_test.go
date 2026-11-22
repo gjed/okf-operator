@@ -22,6 +22,10 @@ func TestGateInput(t *testing.T) {
 		}}, gate.Review{PR: 7, HeadSHA: "h", Details: []string{"a.md: patch_unavailable", "b.md: unsupported: x", "b.md: unsupported: y"}}},
 		{"no pages", Result{PR: 7, HeadSHA: "h", Pass: true},
 			gate.Review{PR: 7, HeadSHA: "h", Details: []string{"no changed page was reviewed"}}},
+		{"page pass with sentences", Result{PR: 7, HeadSHA: "h", Pass: true, Pages: []Page{{Path: "a.md", Pass: true, Unsupported: []string{"x"}}}},
+			gate.Review{PR: 7, HeadSHA: "h", Details: []string{"a.md: unsupported: x"}}},
+		{"page pass with a reason", Result{PR: 7, HeadSHA: "h", Pass: true, Pages: []Page{{Path: "a.md", Pass: true, Reason: ReasonReplyInvalid}}},
+			gate.Review{PR: 7, HeadSHA: "h", Details: []string{"a.md: reply_invalid"}}},
 		{"edited top-level pass", Result{PR: 7, HeadSHA: "h", Pass: true, Pages: []Page{{Path: "a.md", Unsupported: []string{"x"}}}},
 			gate.Review{PR: 7, HeadSHA: "h", Details: []string{"a.md: unsupported: x"}}},
 	}

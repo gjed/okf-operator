@@ -4,13 +4,16 @@ import "github.com/gjed/okf-operator/internal/gate"
 
 // GateInput is the review as `gate` takes it: one detail per page the model
 // did not review and one per unsupported sentence. It passes only when the
-// result and every page pass, so an edited top-level pass counts for nothing.
+// result and every page pass. A page passes only when its flag says so and it
+// carries no reason and no unsupported sentence, so an edited pass flag
+// counts for nothing.
 func (r *Result) GateInput() gate.Review {
 	details := []string{}
 	pass := r.Pass && len(r.Pages) > 0
 	for _, pg := range r.Pages {
-		pass = pass && pg.Pass
-		if pg.Pass {
+		ok := pg.Pass && pg.Reason == "" && len(pg.Unsupported) == 0
+		pass = pass && ok
+		if ok {
 			continue
 		}
 		if pg.Reason != "" {

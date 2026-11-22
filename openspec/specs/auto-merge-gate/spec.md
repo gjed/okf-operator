@@ -199,7 +199,7 @@ A completed evaluation SHALL exit 0 whether `pass` is `true` or `false`, so call
 
 ### Requirement: Review input
 
-`gate` SHALL take an optional `--review <file>`, the JSON result (version 1) of `okf-operator review` for the same PR. When set, the report SHALL gain a `review` rule that passes only when the review result's `pass` is true, with one detail per failing page: `<path>: <reason>` for a page the model did not review, and `<path>: unsupported: <sentence>` for each unsupported sentence.
+`gate` SHALL take an optional `--review <file>`, the JSON result (version 1) of `okf-operator review` for the same PR. When set, the report SHALL gain a `review` rule that passes only when the review result's `pass` is true and every page passes with no `reason` and no unsupported sentence, with one detail per failing page: `<path>: <reason>` for a page the model did not review, and `<path>: unsupported: <sentence>` for each unsupported sentence.
 
 #### Scenario: Failing review
 
@@ -208,7 +208,7 @@ A completed evaluation SHALL exit 0 whether `pass` is `true` or `false`, so call
 
 ### Requirement: Review matches the PR
 
-A review result with unknown fields or another version, or whose `pr` or `head_sha` differs from the PR under evaluation, SHALL fail the run (exit 1) and print no report.
+A review result with unknown fields, trailing data or another version, or whose `pr` or `head_sha` differs from the PR under evaluation, SHALL fail the run (exit 1) and print no report.
 
 #### Scenario: Review for another head
 
