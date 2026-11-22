@@ -27,6 +27,7 @@ func recorded(sha string, routed []string, paths ...string) string {
 func TestWidenedRoutes(t *testing.T) {
 	routedAt := []string{"src/a.go", "src/b.go"}
 	cases := map[string]struct {
+		files   []string
 		page    func(f *fixture) string
 		compare func(f *fixture)
 		want    *plan.Page
@@ -57,6 +58,23 @@ func TestWidenedRoutes(t *testing.T) {
 			want:  &plan.Page{Path: "product/w.md", State: plan.StateUpdate, SourcePaths: []string{"src/b.go"}},
 			entry: plan.ReconcilePage{Path: "product/w.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceHunks, Base: baseB, RoutedPaths: routedAt},
 		},
+		"widened route waits while a reflected file is removed": {
+			page: func(*fixture) string { return recorded(baseB, []string{"src/a.go", "src/c.go"}, "src/c.go") },
+			compare: func(f *fixture) {
+				f.compare(baseB, "ahead", map[string]any{"filename": "src/c.go", "status": "removed"})
+			},
+			want:  &plan.Page{Path: "product/w.md", State: plan.StateUpdate, SourcePaths: []string{"src/c.go"}},
+			entry: plan.ReconcilePage{Path: "product/w.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceHunks, Base: baseB, RoutedPaths: []string{"src/a.go"}},
+		},
+		"widened route waits while a reflected file is renamed": {
+			files: []string{"src/a.go", "src/b.go", "src/c.go"},
+			page:  func(*fixture) string { return recorded(baseB, []string{"src/a.go", "src/old.go"}, "src/old.go") },
+			compare: func(f *fixture) {
+				f.compare(baseB, "ahead", map[string]any{"filename": "src/c.go", "status": "renamed", "previous_filename": "src/old.go"})
+			},
+			want:  &plan.Page{Path: "product/w.md", State: plan.StateUpdate, SourcePaths: []string{"src/c.go", "src/old.go"}},
+			entry: plan.ReconcilePage{Path: "product/w.md", Reason: plan.ReasonRename, Evidence: plan.EvidenceHunks, Base: baseB, RoutedPaths: []string{"src/a.go", "src/c.go"}},
+		},
 		"recorded set covers the route": {
 			page: func(f *fixture) string { return recorded(f.head, routedAt, "src/a.go") },
 		},
@@ -70,7 +88,11 @@ func TestWidenedRoutes(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			f := newFixture(t, widenedRouting, "src/a.go", "src/b.go", "unrelated.go")
+			files := tc.files
+			if files == nil {
+				files = []string{"src/a.go", "src/b.go", "unrelated.go"}
+			}
+			f := newFixture(t, widenedRouting, files...)
 			f.cursor(f.head)
 			f.page("product/w.md", tc.page(f))
 			if tc.compare != nil {

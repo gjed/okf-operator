@@ -181,25 +181,27 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 			rp:   entry(reason, plan.EvidenceFiles, ""),
 		}
 	}
-	// widened plans the routed paths absent from the page's recorded routed
-	// set and not in changed, plus the routed paths in changed, as whole
-	// files. It returns nil when the set is unknown or nothing is new.
-	widened := func(changed map[string]bool) *planned {
+	// added lists the routed paths at to that the page's recorded routed set
+	// lacks and that are not in changed. It is empty when the set is unknown.
+	added := func(changed map[string]bool) []string {
 		if pg.prov.RoutedPaths == nil {
 			return nil
 		}
-		var added, sources []string
+		var out []string
 		for _, sp := range m.SourcePaths {
-			switch {
-			case changed[sp]:
-				sources = append(sources, sp)
-			case !slices.Contains(pg.prov.RoutedPaths, sp):
-				added = append(added, sp)
-				sources = append(sources, sp)
+			if !changed[sp] && !slices.Contains(pg.prov.RoutedPaths, sp) {
+				out = append(out, sp)
 			}
 		}
-		if len(added) == 0 {
-			return nil
+		return out
+	}
+	// widened plans the routed paths that are new or in changed as whole files.
+	widened := func(changed map[string]bool, added []string) *planned {
+		var sources []string
+		for _, sp := range m.SourcePaths {
+			if changed[sp] || slices.Contains(added, sp) {
+				sources = append(sources, sp)
+			}
 		}
 		return &planned{
 			page: plan.Page{Path: path, State: plan.StateUpdate, Type: m.Type, SourcePaths: sources},
@@ -217,7 +219,10 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 		return whole(plan.StateUpdate, plan.ReasonBackfill), nil
 	}
 	if base == to {
-		return widened(nil), nil
+		if a := added(nil); len(a) > 0 {
+			return widened(nil, a), nil
+		}
+		return nil, nil
 	}
 	c := compare(base)
 	switch {
@@ -241,14 +246,18 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 			renamedFrom[ch.PreviousPath] = true
 		}
 	}
-	if w := widened(changed); w != nil {
-		return w, nil
-	}
 	var sources []string
 	for _, cm := range src.Match(paths).Pages {
 		if cm.Page == path {
 			sources = cm.SourcePaths
 		}
+	}
+	// A routed path absent at to was removed or renamed away: only hunks show
+	// that to the model, so a widened route waits for the next run.
+	gone := slices.ContainsFunc(sources, func(sp string) bool { return !slices.Contains(m.SourcePaths, sp) })
+	newPaths := added(changed)
+	if len(newPaths) > 0 && !gone {
+		return widened(changed, newPaths), nil
 	}
 	if len(sources) == 0 {
 		return nil, nil
@@ -259,9 +268,13 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 			reason = plan.ReasonRename
 		}
 	}
+	rp := entry(reason, plan.EvidenceHunks, base)
+	// The new paths are left out of the routed set the page records, so the
+	// next run plans them as widened.
+	rp.RoutedPaths = slices.DeleteFunc(rp.RoutedPaths, func(sp string) bool { return slices.Contains(newPaths, sp) })
 	return &planned{
 		page: plan.Page{Path: path, State: plan.StateUpdate, Type: m.Type, SourcePaths: sources},
-		rp:   entry(reason, plan.EvidenceHunks, base),
+		rp:   rp,
 	}, nil
 }
 
