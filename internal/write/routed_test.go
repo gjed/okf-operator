@@ -1,6 +1,7 @@
 package write
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -118,4 +119,33 @@ func TestRunRoutedPathsOnlyIsUnchanged(t *testing.T) {
 		t.Errorf("page = %+v, want unchanged", rep.Pages[0])
 	}
 	requireSameTree(t, snap, tree(t, e.kb))
+}
+
+// routed_paths is kept out of the prompt and the budget, so a broad route does
+// not push its page over --max-tokens-per-page; Stamp writes it back.
+func TestRunRoutedPathsKeptOutOfPrompt(t *testing.T) {
+	routed := []string{"src/a.go"}
+	for i := range 2000 {
+		routed = append(routed, fmt.Sprintf("src/gen/file%04d.go", i))
+	}
+	e := newEnv(t)
+	writeFile(t, e.kb, alphaPath, withRouted(t, routed...))
+	e.llm.push(respond(alphaNew))
+	rep, err := e.run(testPlan(updatePage(alphaPath, "src/a.go")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Pages[0].Result != ResultChanged {
+		t.Fatalf("page = %+v, want changed", rep.Pages[0])
+	}
+	if user := e.llm.requests()[0].User; strings.Contains(user, provenance.KeyRoutedPaths) {
+		t.Errorf("prompt holds routed_paths")
+	}
+	f, _, err := provenance.Parse([]byte(readFile(t, filepath.Join(e.kb, alphaPath))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.RoutedPaths) != len(routed) {
+		t.Errorf("routed_paths has %d paths, want %d", len(f.RoutedPaths), len(routed))
+	}
 }
