@@ -4,7 +4,7 @@
 
 - backfill a newly onboarded source, whose first `plan` only anchors the cursor;
 - recover when `plan` exits 1 because the cursor diverged (force-push, history rewrite) or the range lists 300 or more files;
-- refresh pages that fell behind: a route changed, a source file was renamed, or an earlier run dropped the page.
+- refresh pages that fell behind: a source file was renamed, or an earlier run dropped the page.
 
 It calls no model and writes nothing. Its output is a plan of `version: 2`, which `write` and `propose` take like a `plan` output.
 
@@ -24,7 +24,7 @@ The pages considered are the route targets of the source and every `.md` page of
 | `source_sha` equals `to`, or no routed file changed since                    | Not planned                                                                     |
 | No route matches a file at `to` and none of its `source_paths` exists        | Deletion candidate                                                              |
 
-A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor.
+A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor. Adding an unchanged file to a page's route is not detected: provenance `source_paths` hold only the files of the last run, so the page is refreshed once its routed files change.
 
 Reason `rename` means the compare reports one of the page's `source_paths` as the previous name of a renamed file. A route target whose frontmatter is malformed exits 1; other malformed bundle pages are skipped with a log line.
 
