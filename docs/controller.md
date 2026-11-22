@@ -93,7 +93,7 @@ Point the writer App's webhook, or a repository webhook on each source repo, at 
 1. Only `push` to the default branch and `pull_request` `closed` with `merged: true` into the default branch queue anything, `ping` included.
 1. The queued `Source`s are those of the event's repository whose knowledge base's secret matched. Anything that queues nothing answers 202.
 
-The bot logins come from `GET /app` and are learned on each knowledge base's first run. The receiver runs on the leader only.
+The bot logins come from `GET /app` and are learned on each knowledge base's first run. The receiver runs on the leader only, and only the leader reports Ready, so the Service sends deliveries to it alone. A stopping leader releases its Lease at once. Keep the Deployment's `Recreate` strategy: under `RollingUpdate` a new Pod would wait for the old Pod's Lease and never become Ready.
 
 ## A run
 

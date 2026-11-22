@@ -1,6 +1,8 @@
 # A sample Deployment of okf-operator controller. Pin the image to a release
 # tag. One replica is enough: leader election keeps a single active one, and
-# only the leader serves the webhook.
+# only the leader serves the webhook and reports Ready. Keep the Recreate
+# strategy: under RollingUpdate a new Pod waits for the Lease the old one
+# holds and never becomes Ready.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -15,6 +17,8 @@ metadata:
     app.kubernetes.io/name: okf-operator
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: okf-operator

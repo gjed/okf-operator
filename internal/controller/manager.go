@@ -83,6 +83,8 @@ func Run(ctx context.Context, o Options) error {
 		LeaderElection:          o.LeaderElect,
 		LeaderElectionID:        "okf-operator.okf.dev",
 		LeaderElectionNamespace: o.LeaderElectionNamespace,
+		// A stopping leader hands over at once instead of after the Lease expires.
+		LeaderElectionReleaseOnCancel: true,
 	}
 	if o.Namespace != "" {
 		mo.Cache = cache.Options{DefaultNamespaces: map[string]cache.Config{o.Namespace: {}}}
@@ -94,7 +96,10 @@ func Run(ctx context.Context, o Options) error {
 	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}
-	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+	// Only the leader serves the webhook, so only the leader is Ready and in
+	// the Service. Pair this with the Recreate strategy: under RollingUpdate a
+	// new Pod would wait for the Lease and never become Ready.
+	if err := mgr.AddReadyzCheck("leader", leaderCheck(mgr.Elected())); err != nil {
 		return err
 	}
 
@@ -139,6 +144,18 @@ func Run(ctx context.Context, o Options) error {
 		return err
 	}
 	return mgr.Start(ctx)
+}
+
+// leaderCheck fails until elected is closed.
+func leaderCheck(elected <-chan struct{}) healthz.Checker {
+	return func(*http.Request) error {
+		select {
+		case <-elected:
+			return nil
+		default:
+			return errors.New("not the leader")
+		}
+	}
 }
 
 func webhookServer(addr string, h http.Handler) manager.RunnableFunc {
