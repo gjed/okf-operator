@@ -73,15 +73,19 @@ func NewProvider(cfg Config, access Access, secrets *Secrets, logger *slog.Logge
 		secrets.Add(cfg.Token)
 		return p, nil
 	}
-	pem, err := os.ReadFile(cfg.App.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("GitHub App private key: %w", err)
+	pem, where := cfg.App.Key, "of App "+strconv.FormatInt(cfg.App.ID, 10)
+	if pem == nil {
+		var err error
+		if pem, err = os.ReadFile(cfg.App.KeyFile); err != nil {
+			return nil, fmt.Errorf("GitHub App private key: %w", err)
+		}
+		where = cfg.App.KeyFile
 	}
 	secrets.Add(string(pem))
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(pem)
 	if err != nil {
 		// The parser error never carries key material, but keep it out anyway.
-		return nil, fmt.Errorf("GitHub App private key %s: not a valid RSA PEM key", cfg.App.KeyFile)
+		return nil, fmt.Errorf("GitHub App private key %s: not a valid RSA PEM key", where)
 	}
 	p.key = key
 	return p, nil
@@ -161,6 +165,27 @@ func (p *Provider) mint(ctx context.Context, owner string) (string, error) {
 		"owner", owner, "installation_id", inst.GetID(), "repositories", names,
 		"expires_at", tok.GetExpiresAt().Time)
 	return tok.GetToken(), nil
+}
+
+// AppSlug returns the App's slug from GET /app, signed with the App JWT. Its
+// bot user's login is the slug followed by "[bot]". Token mode has no App.
+func (p *Provider) AppSlug(ctx context.Context) (string, error) {
+	if p.cfg.App == nil {
+		return "", errors.New("no GitHub App configured")
+	}
+	appJWT, err := p.appJWT()
+	if err != nil {
+		return "", err
+	}
+	c, err := p.client(appJWT)
+	if err != nil {
+		return "", err
+	}
+	app, _, err := c.Apps.Get(ctx, "")
+	if err != nil {
+		return "", fmt.Errorf("read GitHub App %d: %w", p.cfg.App.ID, err)
+	}
+	return app.GetSlug(), nil
 }
 
 // appJWT signs a 9-minute App JWT, backdated 60s for clock drift.

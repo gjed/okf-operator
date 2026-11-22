@@ -166,3 +166,41 @@ func TestSecretsNeverLogged(t *testing.T) {
 		t.Errorf("expected redaction markers:\n%s", out)
 	}
 }
+
+func TestAppModeKeyInMemory(t *testing.T) {
+	fake := githubtest.New(t)
+	_, pem := githubtest.WriteKey(t)
+	secrets := &Secrets{}
+	cfg := Config{APIURL: fake.APIURL(), App: &AppConfig{ID: 7, KeyFile: "/does/not/exist", Key: []byte(pem)}}
+	p, err := NewProvider(cfg, ReadContents("acme/api"), secrets, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.ClientFor(context.Background(), "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got := secrets.Redact(pem); strings.Contains(got, strings.Split(pem, "\n")[3]) {
+		t.Fatal("in-memory key not registered as a secret")
+	}
+	slug, err := p.AppSlug(context.Background())
+	if err != nil || slug != "okf-writer" {
+		t.Fatalf("AppSlug = %q, %v", slug, err)
+	}
+}
+
+func TestAppModeBadKeyInMemory(t *testing.T) {
+	_, err := NewProvider(Config{App: &AppConfig{ID: 3, Key: []byte("not a key at all")}}, Access{}, &Secrets{}, slog.New(slog.DiscardHandler))
+	if err == nil || !strings.Contains(err.Error(), "of App 3") || strings.Contains(err.Error(), "not a key at all") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAppSlugTokenMode(t *testing.T) {
+	p, err := NewProvider(Config{Token: "ghp_localToken123"}, Access{}, &Secrets{}, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.AppSlug(context.Background()); err == nil {
+		t.Fatal("want error in token mode")
+	}
+}
