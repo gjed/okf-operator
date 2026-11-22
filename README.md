@@ -93,7 +93,30 @@ GITHUB_TOKEN=$(gh auth token) okf-operator plan \
 | `--to sha`                           | End of the range (full 40-character SHA) instead of the source default branch HEAD      |
 | `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                         |
 
-`plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need `reconcile`. See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
+`plan` exits 1 when the cursor diverged from the source history or the range lists 300 or more files; both need [`reconcile`](#reconcile). See [Routing map](docs/routing.md) and [Operator state](docs/state.md).
+
+### reconcile
+
+`reconcile` plans every routed page of one source against the source tree at one commit instead of the range since the cursor. It backfills a newly onboarded source, recovers from a diverged cursor or an oversized range, and refreshes pages that fell behind. It lists the tree with the git trees API, routes every file, reads each page's provenance from the knowledge checkout, and prints a plan of `version: 2` that `write` and `propose` take like a `plan` output. It calls no model and writes nothing.
+
+```bash
+GITHUB_TOKEN=$(gh auth token) okf-operator reconcile \
+  --source cli/cli \
+  --knowledge-repo gjed/okf-operator \
+  --knowledge-dir ./kb \
+  --to 0536d5e5288458c696ccbeac0e68d87128300069
+```
+
+| Flag                                 | Description                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `--source owner/name`                | Source repo, one per run (required)                                                      |
+| `--knowledge-repo owner/name`        | Knowledge repo holding the `kb-state` branch (required)                                  |
+| `--knowledge-dir path`               | Checkout `write` will use: the open bot PR's branch, else the default branch (required)  |
+| `--routing file`                     | Routing map (default `<knowledge-dir>/.kb/routing.yaml`)                                 |
+| `--to sha`                           | Commit to reconcile at (full 40-character SHA) instead of the source default branch HEAD |
+| `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md)                          |
+
+Each planned page carries a reason (`backfill`, `stale` or `rename`) and its evidence for `write`: the compare patches from the page's own `source_sha`, or the whole source files at `to` when the page has no usable base. Pages whose routes and `source_paths` match nothing at `to` are reported as deletion candidates and never deleted. Run `write` and `propose` on the plan as for `plan`, against the same checkout; `propose` opens or updates the bot PR, lists the deletion candidates in it, and only then moves the cursor from the one `reconcile` read to `to`, which re-anchors a diverged cursor. `gate` and `review` refuse reconcile plans, so a reconcile PR always goes to a human. A truncated tree or a source missing from the routing map exits 1. See [Reconciling a source](docs/reconcile.md).
 
 ### write
 

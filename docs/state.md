@@ -53,3 +53,16 @@ A source with no cursor is never backfilled by `plan`. The first run only anchor
 | Cursor changed between read and write         | GitHub answers 409 or 422, exit 1; the other run's cursor is kept      |
 
 Each advance is one commit on `kb-state`: `okf: advance cursor for <owner>/<name> to <sha>`.
+
+## Re-anchoring
+
+A diverged cursor, or a source with no cursor that needs a backfill, goes through `reconcile`, `write` and `propose`; see [Reconciling a source](reconcile.md). `reconcile` reads the cursor and writes it into its plan as `from` (empty and `initial: true` when there is none), and `reconcile.cursor` says how it relates to `to`. `propose` then moves the cursor from that `from` to `to` with the same compare-and-swap as above. There is no unconditional cursor write.
+
+| `reconcile.cursor` | Cursor after a successful `propose`                                          |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `missing`          | Created with `to` (and `kb-state` with it), after the bot PR if there is one |
+| `diverged`         | Re-anchored: rewritten with `to`, after the bot PR is opened or updated      |
+| `ancestor`         | Moved to `to`, like a `plan` run                                             |
+| `head`             | Not written; the bot PR still carries the refreshed pages                    |
+
+Unlike an initial `plan`, an initial reconcile plan takes the full `propose` path: checkout checks, commit and bot PR first, cursor last. A run that fails before the cursor write leaves the cursor where it was, so a diverged cursor stays diverged and `plan` keeps exiting 1 until a reconcile run succeeds. A cursor moved by another run after `reconcile` read it fails `propose`; re-run `reconcile`.
