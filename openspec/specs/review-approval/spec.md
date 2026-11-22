@@ -8,7 +8,7 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 
 ### Requirement: Approve inputs
 
-`approve` SHALL take `--knowledge-repo owner/name`, `--pr <number>` and `--report <file|->`, where `--report` is a `gate` report (version 1) and `-` reads it from stdin. A report with unknown fields or another version SHALL exit 1. A report whose `pr` differs from `--pr` SHALL exit 1. A missing or malformed flag SHALL exit 2.
+`approve` SHALL take `--knowledge-repo owner/name`, `--pr <number>` and `--report <file|->`, where `--report` is a `gate` report (version 1) and `-` reads it from stdin. A report with unknown fields, trailing data or another version SHALL exit 1. A report whose `pr` differs from `--pr` SHALL exit 1. A missing or malformed flag SHALL exit 2.
 
 #### Scenario: Report for another PR
 
@@ -41,7 +41,7 @@ Defines `okf-operator approve` and the review-only GitHub App it signs in as, so
 
 ### Requirement: Complete report only
 
-`approve` SHALL post nothing unless the report contains every deterministic gate rule: `provenance`, `routed_set`, `allowlist`, `change_shape`, `size` and `links`. A report missing one SHALL yield `reason: "report_incomplete"`, so removing a failing rule from a report cannot produce an approval.
+`approve` SHALL post nothing unless the report contains every deterministic gate rule: `provenance`, `routed_set`, `allowlist`, `change_shape`, `size` and `links`. A report missing one, or repeating any rule, SHALL yield `reason: "report_incomplete"`, so removing a failing rule from a report cannot produce an approval.
 
 #### Scenario: Rule removed from the report
 
