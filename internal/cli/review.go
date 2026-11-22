@@ -87,7 +87,7 @@ func runReview(ctx context.Context, env Env, args []string) error {
 	logger := slog.New(github.NewRedactingHandler(env.Logger.Handler(), secrets))
 	fail := func(err error) error { return errors.New(secrets.Redact(err.Error())) }
 
-	p, err := readPlan(*planFile, env.Stdin)
+	p, err := readRunPlan(*planFile, env.Stdin)
 	if err != nil {
 		return fail(err)
 	}

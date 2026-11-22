@@ -51,7 +51,7 @@ func runGate(ctx context.Context, env Env, args []string) error {
 		return usage(err)
 	}
 
-	p, err := readPlan(*planFile, env.Stdin)
+	p, err := readRunPlan(*planFile, env.Stdin)
 	if err != nil {
 		return err
 	}

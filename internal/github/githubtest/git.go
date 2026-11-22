@@ -290,7 +290,12 @@ func (f *Fake) contents(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	g := f.gitRepo(repoKey(r))
 	_, ok := g.refs["heads/"+ref]
-	e, found := g.headFiles(ref)[r.PathValue("path")]
+	files := g.headFiles(ref)
+	if c := g.objects[ref]; !ok && c != nil && c.kind == "commit" {
+		ok = true
+		g.flatten(c.tree, "", files)
+	}
+	e, found := files[r.PathValue("path")]
 	var content []byte
 	if found {
 		content = g.objects[e.sha].content
@@ -307,6 +312,7 @@ func (f *Fake) contents(w http.ResponseWriter, r *http.Request) {
 			"encoding": "base64",
 			"path":     r.PathValue("path"),
 			"sha":      e.sha,
+			"size":     len(content),
 			"content":  base64.StdEncoding.EncodeToString(content),
 		})
 	}

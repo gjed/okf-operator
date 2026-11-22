@@ -38,7 +38,7 @@ func runWrite(ctx context.Context, env Env, args []string) error {
 		_, _ = fmt.Fprint(fs.Output(), "Usage: okf-operator write --plan <file|-> --knowledge-dir <path> [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
-	planFile := fs.String("plan", "", "plan JSON `file` from `okf-operator plan`, or - for stdin (required)")
+	planFile := fs.String("plan", "", "plan JSON `file` from `okf-operator plan` or `okf-operator reconcile`, or - for stdin (required)")
 	kbDir := fs.String("knowledge-dir", "", "`path` to a checkout of the knowledge repo; changed and created pages are written here (required)")
 	baseURL := fs.String("model-base-url", "", "OpenAI-compatible API base `url` (default $"+EnvModelBaseURL+")")
 	modelName := fs.String("model", "", "model `name` (default $"+EnvModel+")")
@@ -130,6 +130,16 @@ func readPlan(file string, stdin io.Reader) (*plan.Plan, error) {
 	}
 	defer func() { _ = f.Close() }()
 	return write.DecodePlan(f)
+}
+
+// readRunPlan reads a plan for gate and review, which take version 1 only:
+// readPlan also reads reconcile plans, whose PRs always go to a human.
+func readRunPlan(file string, stdin io.Reader) (*plan.Plan, error) {
+	p, err := readPlan(file, stdin)
+	if err == nil && p.Version != plan.Version {
+		return nil, fmt.Errorf("plan version %d is not supported, want %d: a reconcile PR is never auto-merged", p.Version, plan.Version)
+	}
+	return p, err
 }
 
 func checkWriteFlags(fs *flag.FlagSet, planFile, kbDir, baseURL, modelName string, maxPages, maxTokens int) error {

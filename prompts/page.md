@@ -32,6 +32,11 @@ Diff of {{.Path}}:
 
 {{.Patch}}
 {{end}}
+{{- range .Files}}
+Full content of {{.Path}}:
+
+{{.Content}}
+{{end}}
 <<<END-UNTRUSTED-SOURCE-DATA>>>
 {{- if .ValidationError}}
 
