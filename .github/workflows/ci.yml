@@ -71,6 +71,13 @@ jobs:
           # renovate: datasource=github-releases depName=golangci/golangci-lint
           version: v2.15.0
 
+      - name: Check generated files
+        # CRDs and deepcopy code are committed; a stale copy fails here.
+        run: |
+          make generate
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+
   test:
     name: Test
     runs-on: ubuntu-latest

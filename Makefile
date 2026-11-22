@@ -13,6 +13,15 @@ build: ## Build the okf-operator binary
 test: ## Run unit tests
 	go test ./...
 
+# renovate: datasource=go depName=sigs.k8s.io/controller-tools
+CONTROLLER_GEN_VERSION := v0.23.0
+
+.PHONY: generate
+generate: ## Regenerate deepcopy code and CRDs from api/
+	go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION) \
+		object paths=./api/... \
+		crd paths=./api/... output:crd:artifacts:config=deploy/crds
+
 .PHONY: lint
 lint: ## Run linter
 	golangci-lint run ./...
