@@ -172,10 +172,38 @@ type planned struct {
 // selectPage decides whether a page with routed paths m is planned, and how.
 // It returns nil for a page that is current at to.
 func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, to string, compare func(string) comparison) (*planned, error) {
+	entry := func(reason, evidence, base string) plan.ReconcilePage {
+		return plan.ReconcilePage{Path: path, Reason: reason, Evidence: evidence, Base: base, RoutedPaths: slices.Clone(m.SourcePaths)}
+	}
 	whole := func(state, reason string) *planned {
 		return &planned{
 			page: plan.Page{Path: path, State: state, Type: m.Type, SourcePaths: m.SourcePaths},
-			rp:   plan.ReconcilePage{Path: path, Reason: reason, Evidence: plan.EvidenceFiles},
+			rp:   entry(reason, plan.EvidenceFiles, ""),
+		}
+	}
+	// widened plans the routed paths absent from the page's recorded routed
+	// set and not in changed, plus the routed paths in changed, as whole
+	// files. It returns nil when the set is unknown or nothing is new.
+	widened := func(changed map[string]bool) *planned {
+		if pg.prov.RoutedPaths == nil {
+			return nil
+		}
+		var added, sources []string
+		for _, sp := range m.SourcePaths {
+			switch {
+			case changed[sp]:
+				sources = append(sources, sp)
+			case !slices.Contains(pg.prov.RoutedPaths, sp):
+				added = append(added, sp)
+				sources = append(sources, sp)
+			}
+		}
+		if len(added) == 0 {
+			return nil
+		}
+		return &planned{
+			page: plan.Page{Path: path, State: plan.StateUpdate, Type: m.Type, SourcePaths: sources},
+			rp:   entry(plan.ReasonWidened, plan.EvidenceFiles, ""),
 		}
 	}
 	if !pg.exists {
@@ -189,7 +217,7 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 		return whole(plan.StateUpdate, plan.ReasonBackfill), nil
 	}
 	if base == to {
-		return nil, nil
+		return widened(nil), nil
 	}
 	c := compare(base)
 	switch {
@@ -204,12 +232,17 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 	}
 	var paths []string
 	renamedFrom := map[string]bool{}
+	changed := map[string]bool{}
 	for _, ch := range c.changed {
 		paths = append(paths, ch.Path)
+		changed[ch.Path] = true
 		if ch.PreviousPath != "" {
 			paths = append(paths, ch.PreviousPath)
 			renamedFrom[ch.PreviousPath] = true
 		}
+	}
+	if w := widened(changed); w != nil {
+		return w, nil
 	}
 	var sources []string
 	for _, cm := range src.Match(paths).Pages {
@@ -228,7 +261,7 @@ func selectPage(path string, pg page, m routing.PageMatch, src *routing.Source, 
 	}
 	return &planned{
 		page: plan.Page{Path: path, State: plan.StateUpdate, Type: m.Type, SourcePaths: sources},
-		rp:   plan.ReconcilePage{Path: path, Reason: reason, Evidence: plan.EvidenceHunks, Base: base},
+		rp:   entry(reason, plan.EvidenceHunks, base),
 	}, nil
 }
 

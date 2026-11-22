@@ -10,7 +10,7 @@
 
 ## 3. Reconcile detects widened routes
 
-- [ ] 3.1 Plan pages with reason `widened` in `internal/reconcile`, add `routed_paths` to every entry, count the reason in telemetry; verify with `go test ./internal/reconcile` covering a route widened to an unchanged file (ancestor and equal `source_sha`), an added file staying `stale`, a page without `routed_paths` planned as before, and the span and counter for `widened`
+- [x] 3.1 Plan pages with reason `widened` in `internal/reconcile`, add `routed_paths` to every entry, count the reason in telemetry; verify with `go test ./internal/reconcile` covering a route widened to an unchanged file (ancestor and equal `source_sha`), an added file staying `stale`, a page without `routed_paths` planned as before, and the span and counter for `widened`
 
 ## 4. Gate and docs
 
