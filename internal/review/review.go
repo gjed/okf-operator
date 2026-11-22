@@ -217,13 +217,21 @@ func fetchPatches(ctx context.Context, d Deps, p *plan.Plan, jobs []*job) (map[s
 // It returns the tokens spent.
 func reviewPage(ctx context.Context, d Deps, j *job, patches map[string]string) (Tokens, error) {
 	hunks := make([]hunk, 0, len(j.sourcePaths))
+	evidence := false
 	for _, sp := range j.sourcePaths {
 		patch, ok := patches[sp]
 		if !ok {
 			j.page.Reason = ReasonPatchUnavailable
 			return Tokens{}, nil
 		}
+		evidence = evidence || patch != ""
 		hunks = append(hunks, hunk{Path: sp, Patch: patch})
+	}
+	// No source path, or only empty patches (a pure rename): nothing to
+	// support any statement with.
+	if !evidence {
+		j.page.Reason = ReasonPatchUnavailable
+		return Tokens{}, nil
 	}
 	before, after := align(j.before, j.after, j.isNew)
 	prompt, err := render(promptData{Path: j.page.Path, New: j.isNew, Before: string(before), After: string(after), Hunks: hunks})
@@ -252,9 +260,14 @@ func reviewPage(ctx context.Context, d Deps, j *job, patches map[string]string) 
 	return tok, nil
 }
 
+// provenanceOnly is the frontmatter a new page's before side is stamped into,
+// so it shows the head's provenance and nothing else.
+const provenanceOnly = "---\n" + provenance.KeySourceRepo + ": \"\"\n---\n"
+
 // align stamps both pages with the head page's provenance, so provenance
-// changes never look like changed statements. Pages without a frontmatter
-// are returned as they are.
+// changes never look like changed statements. A new page's before side
+// becomes that provenance alone. Pages without a frontmatter are returned as
+// they are.
 func align(before, after []byte, isNew bool) ([]byte, []byte) {
 	f, _, err := provenance.Parse(after)
 	if err != nil {
@@ -265,7 +278,7 @@ func align(before, after []byte, isNew bool) ([]byte, []byte) {
 		return before, after
 	}
 	if isNew {
-		return before, a
+		before = []byte(provenanceOnly)
 	}
 	b, err := provenance.Stamp(before, f)
 	if err != nil {
@@ -274,11 +287,11 @@ func align(before, after []byte, isNew bool) ([]byte, []byte) {
 	return b, a
 }
 
-// reply is the JSON object the reviewer must return.
-type reply struct {
-	Verdict     *string   `json:"verdict"`
-	Unsupported *[]string `json:"unsupported"`
-}
+// Reply keys, matched exactly.
+const (
+	keyVerdict     = "verdict"
+	keyUnsupported = "unsupported"
+)
 
 // parseReply returns the unsupported sentences and whether the reply is
 // exactly the expected object with a verdict that matches its list.
@@ -286,31 +299,75 @@ func parseReply(r model.Reply) ([]string, bool) {
 	if r.FinishReason == "length" {
 		return nil, false
 	}
-	dec := json.NewDecoder(strings.NewReader(unfence(strings.TrimSpace(r.Text))))
-	dec.DisallowUnknownFields()
-	var rep reply
-	if err := dec.Decode(&rep); err != nil || rep.Verdict == nil || rep.Unsupported == nil {
-		return nil, false
-	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+	verdict, list, ok := decodeReply(unfence(strings.TrimSpace(r.Text)))
+	if !ok {
 		return nil, false
 	}
 	var sentences []string
-	for _, s := range *rep.Unsupported {
+	for _, s := range list {
 		if s = strings.TrimSpace(s); s != "" {
 			sentences = append(sentences, s)
 		}
 	}
 	slices.Sort(sentences)
 	sentences = slices.Compact(sentences)
-	switch *rep.Verdict {
+	switch verdict {
 	case VerdictSupported:
-		return nil, len(*rep.Unsupported) == 0
+		return nil, len(list) == 0
 	case VerdictUnsupported:
 		return sentences, len(sentences) > 0
 	default:
 		return nil, false
 	}
+}
+
+// decodeReply reads one JSON object with exactly the keys verdict (a string)
+// and unsupported (a list of strings), each once and spelled exactly. The
+// standard decoder matches keys case-insensitively and keeps the last of a
+// repeated key, so the object is walked token by token.
+func decodeReply(text string) (string, []string, bool) {
+	dec := json.NewDecoder(strings.NewReader(text))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return "", nil, false
+	}
+	var verdict *string
+	var list *[]string
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", nil, false
+		}
+		switch tok {
+		case keyVerdict:
+			if verdict != nil {
+				return "", nil, false
+			}
+			verdict = new(string)
+			err = dec.Decode(verdict)
+		case keyUnsupported:
+			if list != nil {
+				return "", nil, false
+			}
+			list = new([]string)
+			err = dec.Decode(list)
+		default:
+			return "", nil, false
+		}
+		if err != nil {
+			return "", nil, false
+		}
+	}
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('}') {
+		return "", nil, false
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return "", nil, false
+	}
+	// A JSON null decodes into a nil list: a missing list in disguise.
+	if verdict == nil || list == nil || *list == nil {
+		return "", nil, false
+	}
+	return *verdict, *list, true
 }
 
 // unfence removes one surrounding Markdown code fence.
@@ -355,8 +412,8 @@ func Decode(rd io.Reader) (*Result, error) {
 	if err := dec.Decode(&r); err != nil {
 		return nil, fmt.Errorf("decode review: %w", err)
 	}
-	if dec.More() {
-		return nil, errors.New("decode review: more than one JSON document")
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, errors.New("decode review: trailing data after the JSON document")
 	}
 	if r.Version != Version {
 		return nil, fmt.Errorf("review version %d is not supported, want %d", r.Version, Version)

@@ -40,25 +40,35 @@ For each page, the prompt SHALL contain the page before, the page after and the 
 
 ### Requirement: Missing patch fails the page
 
-When any of the page's `source_paths` has no patch, because the API omitted it or the range is too large to list, the page SHALL fail with `reason: "patch_unavailable"` and no model call is made for it.
+When any of the page's `source_paths` has no patch, because the API omitted it or the range is too large to list, the page SHALL fail with `reason: "patch_unavailable"` and no model call is made for it. A page with no planned source path, or whose patches are all empty (a pure rename), SHALL fail the same way.
 
 #### Scenario: Missing patch
 
 - **WHEN** the compare response omits the patch of one of a page's source paths
 - **THEN** that page has `pass: false` and `reason: "patch_unavailable"`
 
+#### Scenario: Only empty patches
+
+- **WHEN** every source path of a page is a rename with no content change
+- **THEN** that page has `pass: false` and `reason: "patch_unavailable"`, and no model call is made for it
+
 ### Requirement: Provenance is not reviewed
 
-Before prompting, the page before SHALL carry the same provenance fields as the page after, so provenance changes are never presented to the reviewer as changed statements.
+Before prompting, the page before SHALL carry the same provenance fields as the page after, so provenance changes are never presented to the reviewer as changed statements. For a new page, the page before SHALL be the head's provenance fields alone.
 
 #### Scenario: Restamped page
 
 - **WHEN** the head changes only the page's `updated_at` and `source_sha`
 - **THEN** the page before and the page after in the prompt are identical
 
+#### Scenario: New page
+
+- **WHEN** the PR adds a page
+- **THEN** the page before in the prompt holds the head's provenance fields and nothing else
+
 ### Requirement: Page content is untrusted data
 
-The page before, the page after, the page path and the source hunks SHALL be placed in delimited blocks marked as untrusted, and every `<<<` in them SHALL be broken so they cannot close their block. The system prompt SHALL tell the model that text in those blocks is data, never instructions.
+The page before, the page after, the page path and the source hunks SHALL be placed in delimited blocks marked as untrusted, and every `<<<` in them, including inside longer runs of `<`, SHALL be broken so they cannot close their block. Paths SHALL be quoted, and the closing instruction SHALL NOT repeat any untrusted value. The system prompt SHALL tell the model that text in those blocks is data, never instructions.
 
 #### Scenario: Page asks the reviewer to pass
 
@@ -81,7 +91,7 @@ The reviewer SHALL be asked to reply with one JSON object with exactly the keys 
 
 ### Requirement: Malformed reply fails closed
 
-A reply that is not exactly that object, a `verdict` that contradicts the list, or a reply cut off at the token limit SHALL fail the page with `reason: "reply_invalid"`. It SHALL never pass.
+A reply that is not exactly that object, a `verdict` that contradicts the list, a repeated key, a key spelled in another case, or a reply cut off at the token limit SHALL fail the page with `reason: "reply_invalid"`. It SHALL never pass.
 
 #### Scenario: Malformed reply
 
