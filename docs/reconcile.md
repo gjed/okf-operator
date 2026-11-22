@@ -4,7 +4,7 @@
 
 - backfill a newly onboarded source, whose first `plan` only anchors the cursor;
 - recover when `plan` exits 1 because the cursor diverged (force-push, history rewrite) or the range lists 300 or more files;
-- refresh pages that fell behind: a source file was renamed, or an earlier run dropped the page.
+- refresh pages that fell behind: a source file was renamed, a route now covers files the page never saw, or an earlier run dropped the page.
 
 It calls no model and writes nothing. Its output is a plan of `version: 2`, which `write` and `propose` take like a `plan` output.
 
@@ -19,14 +19,21 @@ The pages considered are the route targets of the source and every `.md` page of
 | Routed files exist, page missing                                             | `create` (route has a `type`) or `missing`, reason `backfill`, evidence `files` |
 | Routed files exist, page has no frontmatter, no `source_sha` or another repo | `update`, reason `backfill`, evidence `files`                                   |
 | `source_sha` has diverged from `to`                                          | `update`, reason `backfill`, evidence `files`                                   |
+| A routed file is not in `routed_paths` and unchanged since `source_sha`      | `update`, reason `widened`, evidence `files`                                    |
 | `source_sha` is an ancestor and routed files changed since                   | `update`, reason `stale` (or `rename`), evidence `hunks` from `source_sha`      |
 | As above, but the compare lists 300 or more files                            | `update`, reason `stale`, evidence `files`                                      |
-| `source_sha` equals `to`, or no routed file changed since                    | Not planned                                                                     |
+| `source_sha` equals `to`, or no routed file changed since, and none is new   | Not planned                                                                     |
 | No route matches a file at `to` and none of its `source_paths` exists        | Deletion candidate                                                              |
 
-A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor. Adding an unchanged file to a page's route is not detected: provenance `source_paths` hold only the files of the last run, so the page is refreshed once its routed files change.
+A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor.
 
 Reason `rename` means the compare reports one of the page's `source_paths` as the previous name of a renamed file. A route target whose frontmatter is malformed exits 1; other malformed bundle pages are skipped with a log line.
+
+### Widened routes
+
+Provenance `source_paths` holds only the files of the last run, so it cannot tell that a route now covers more files. Provenance `routed_paths` records the source files the page reflects at its `source_sha`. When a file routed to the page at `to` is missing from `routed_paths` and did not change since `source_sha`, the page is planned with reason `widened` and evidence `files`, even when its `source_sha` equals `to`. Its `source_paths` are those new files plus the routed files that changed since `source_sha`; the files it already reflects and that did not change are not sent. `widened` takes precedence over `stale` and `rename`. A file added since `source_sha` is a change, not a widening, so it gives `stale` with its patch.
+
+Pages written before `routed_paths` existed have none. Their routed set is unknown, so they are never planned as `widened` and are chosen exactly as before. The next `write` of such a page from a reconcile plan records the routed set at `to`. A route widened before that write is therefore not detected; to force a refresh, remove the page's `source_sha` so that `reconcile` backfills it.
 
 ## Plan version 2
 
@@ -47,7 +54,7 @@ Reason `rename` means the compare reports one of the page's `source_paths` as th
   "reconcile": {
     "cursor": "missing",
     "pages": [
-      { "path": "tools/gh/api.md", "reason": "stale", "evidence": "hunks", "base": "f7fd1d490b7edbccc21e0349ad16f09b6af08637" }
+      { "path": "tools/gh/api.md", "reason": "stale", "evidence": "hunks", "base": "f7fd1d490b7edbccc21e0349ad16f09b6af08637", "routed_paths": ["pkg/cmd/api/api.go", "pkg/cmd/api/http.go"] }
     ],
     "deletion_candidates": [
       { "path": "tools/gh/legacy.md", "source_sha": "3e6aeafb1b796b862389c1abe4deba5e60fa0b01", "source_paths": ["legacy/main.go"] }
@@ -58,11 +65,13 @@ Reason `rename` means the compare reports one of the page's `source_paths` as th
 
 Every version 1 key keeps its meaning. `from` is the cursor `reconcile` read, empty when there is none, and `initial` is true exactly then. `changed_paths`, `unrouted` and `excluded` are always empty. The `reconcile` object holds:
 
-| Key                   | Meaning                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| `cursor`              | `missing`, `head` (at `to`), `ancestor` (behind `to`) or `diverged` (diverged from `to`) |
-| `pages`               | One entry per plan page: `reason` (`backfill`, `stale`, `rename`), `evidence`, `base`    |
-| `deletion_candidates` | Pages whose sources are gone, with their `source_sha` and `source_paths`                 |
+| Key                   | Meaning                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `cursor`              | `missing`, `head` (at `to`), `ancestor` (behind `to`) or `diverged` (diverged from `to`)                         |
+| `pages`               | One entry per plan page: `reason` (`backfill`, `stale`, `rename`, `widened`), `evidence`, `base`, `routed_paths` |
+| `deletion_candidates` | Pages whose sources are gone, with their `source_sha` and `source_paths`                                         |
+
+`routed_paths` lists every source file routed to the page at `to`; `write` stamps it as the page's provenance `routed_paths`. Plans printed before it existed omit it and keep their digest, but a `write` older than this key rejects a plan that carries it.
 
 `evidence: hunks` makes `write` send the compare patches of `base..to` for the page's `source_paths`. `evidence: files` makes it send the whole files at `to` instead; see [Writing pages](write.md#reconcile-plans). Version 2 prompts carry no source PR context.
 

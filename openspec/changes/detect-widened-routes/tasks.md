@@ -15,4 +15,4 @@
 ## 4. Gate and docs
 
 - [x] 4.1 Add gate provenance rule tests for pages with, without and with a wrong-typed `routed_paths`; verify with `go test ./internal/gate`
-- [ ] 4.2 Document `routed_paths`, reason `widened` and the migration in `docs/reconcile.md`, `docs/write.md` and the README, remove the documented limit, and verify the markdown lint passes
+- [x] 4.2 Document `routed_paths`, reason `widened` and the migration in `docs/reconcile.md`, `docs/write.md` and the README, remove the documented limit, and verify the markdown lint passes
