@@ -11,4 +11,5 @@ var commands = []Command{
 	gateCommand,
 	reviewCommand,
 	approveCommand,
+	controllerCommand,
 }
