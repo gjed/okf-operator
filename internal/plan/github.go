@@ -224,7 +224,9 @@ func (g GitHubDiffer) compare(ctx context.Context, repo, base, head string) (*go
 	}
 	switch s := cmp.GetStatus(); s {
 	case StatusIdentical, StatusAhead:
-	case StatusBehind, StatusDiverged:
+	case StatusBehind:
+		return nil, fmt.Errorf("%s %s...%s is %s: %w (%w)", repo, base, head, s, ErrDiverged, ErrBehind)
+	case StatusDiverged:
 		return nil, fmt.Errorf("%s %s...%s is %s: %w", repo, base, head, s, ErrDiverged)
 	default:
 		return nil, fmt.Errorf("compare %s %s...%s: unknown status %q", repo, base, head, s)

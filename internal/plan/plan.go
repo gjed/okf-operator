@@ -143,6 +143,8 @@ func Digest(p *Plan) (string, error) {
 var (
 	ErrDiverged   = errors.New("cursor diverged from the source history: reconcile required")
 	ErrIncomplete = errors.New("range incomplete: the compare API did not return every changed file: reconcile required")
+	// ErrBehind accompanies ErrDiverged when head is an ancestor of base.
+	ErrBehind = errors.New("the end commit is behind the base")
 )
 
 // Compare statuses returned by the GitHub compare API.
