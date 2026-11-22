@@ -177,13 +177,15 @@ func Agree(p *plan.Plan, rep *write.Report) error {
 }
 
 // Run proposes the pages rep marks changed or created and advances the cursor. All
-// reads happen before the first write, and the cursor moves last.
+// reads happen before the first write, and the cursor moves last. A reconcile
+// plan always takes the PR flow: its pages are not tied to the cursor range.
 func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result, error) {
 	if err := Agree(p, rep); err != nil {
 		return nil, err
 	}
+	reconcile := p.Reconcile != nil
 	res := &Result{Version: Version, Source: p.Source, Bundle: p.Bundle, From: p.From, To: p.To, Action: ActionNone}
-	if !p.Initial && p.From == p.To {
+	if !reconcile && !p.Initial && p.From == p.To {
 		d.Logger.InfoContext(ctx, "empty range: nothing to propose", "source", p.Source)
 		record(ctx, res, 0)
 		return res, nil
@@ -191,7 +193,7 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	if err := d.Cursor.Check(ctx, p.Source, p.From, p.Initial); err != nil {
 		return nil, err
 	}
-	if p.Initial {
+	if p.Initial && !reconcile {
 		// An initial plan has no pages (Agree checked the report matches): it
 		// only anchors the cursor and never touches the knowledge branches.
 		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, true); err != nil {
@@ -231,23 +233,35 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 		return nil, err
 	}
 
+	if reconcile {
+		for _, c := range p.Reconcile.DeletionCandidates {
+			d.Logger.WarnContext(ctx, "deletion candidate: no routed source path is left, a human must remove or reroute the page",
+				"source", p.Source, "page", c.Path, "source_sha", c.SourceSHA)
+		}
+	}
+
 	if len(files) == 0 {
-		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, false); err != nil {
+		if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, p.Initial); err != nil {
 			return nil, err
 		}
-		res.CursorAdvanced = true
+		res.CursorAdvanced = p.Initial || p.From != p.To
 		d.Logger.InfoContext(ctx, "no page changed: cursor advanced without a PR", "source", p.Source, "to", p.To)
 		record(ctx, res, 0)
 		return res, nil
 	}
 
-	numbers, total, listed, err := d.SourcePRs.PullRequests(ctx, p.Source, p.From, p.To)
-	if err != nil {
-		return nil, err
+	var sec, msg string
+	if reconcile {
+		sec, msg = reconcileSection(p, rep), reconcileMessage(p)
+	} else {
+		numbers, total, listed, err := d.SourcePRs.PullRequests(ctx, p.Source, p.From, p.To)
+		if err != nil {
+			return nil, err
+		}
+		sec, msg = section(p, rep, numbers, total, listed), commitMessage(p, numbers)
 	}
-	sec := section(p, rep, numbers, total, listed)
 
-	commit, err := d.Knowledge.Commit(ctx, d.Base, files, commitMessage(p, numbers))
+	commit, err := d.Knowledge.Commit(ctx, d.Base, files, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -269,11 +283,11 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	res.PR = &PR{Number: pull.Number, URL: pull.URL}
 	d.Logger.InfoContext(ctx, "knowledge PR "+res.Action, "source", p.Source, "pr", pull.Number, "commit", commit, "pages", len(files))
 
-	if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, false); err != nil {
+	if err := d.Cursor.Advance(ctx, p.Source, p.From, p.To, p.Initial); err != nil {
 		record(ctx, res, len(files))
 		return nil, err
 	}
-	res.CursorAdvanced = true
+	res.CursorAdvanced = p.Initial || p.From != p.To
 	record(ctx, res, len(files))
 	return res, nil
 }
@@ -303,6 +317,10 @@ func commitMessage(p *plan.Plan, numbers []int) string {
 		fmt.Fprintf(&b, "\nSource PRs: %s\n", strings.Join(refs, ", "))
 	}
 	return b.String()
+}
+
+func reconcileMessage(p *plan.Plan) string {
+	return fmt.Sprintf("okf: reconcile %s from %s at %s\n", p.Bundle, p.Source, short(p.To))
 }
 
 func short(sha string) string {
