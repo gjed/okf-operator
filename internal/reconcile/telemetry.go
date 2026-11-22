@@ -14,7 +14,7 @@ import (
 const meterName = "github.com/gjed/okf-operator/internal/reconcile"
 
 // reasons lists the page reasons in the order they are recorded.
-var reasons = []string{plan.ReasonBackfill, plan.ReasonStale, plan.ReasonRename}
+var reasons = []string{plan.ReasonBackfill, plan.ReasonStale, plan.ReasonRename, plan.ReasonWidened}
 
 // record annotates the dispatcher's `reconcile` span and adds the counts to
 // the okf.reconcile.* counters. It opens no span of its own.

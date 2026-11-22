@@ -153,8 +153,8 @@ sources:
 		t.Errorf("pages = %+v, want %+v", p.Pages, wantPages)
 	}
 	wantEntries := []plan.ReconcilePage{
-		{Path: "product/api.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles},
-		{Path: "product/guide.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles},
+		{Path: "product/api.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles, RoutedPaths: []string{"src/x.go"}},
+		{Path: "product/guide.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles, RoutedPaths: []string{"docs/a.md", "docs/b.md"}},
 	}
 	if !reflect.DeepEqual(p.Reconcile.Pages, wantEntries) || len(p.Reconcile.DeletionCandidates) != 0 {
 		t.Errorf("reconcile = %+v", p.Reconcile)
@@ -235,11 +235,12 @@ func TestMixed(t *testing.T) {
 		t.Errorf("pages = %+v\nwant    %+v", p.Pages, wantPages)
 	}
 	wantEntries := []plan.ReconcilePage{
-		{Path: "product/big.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceFiles},
-		{Path: "product/diverged.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles},
-		{Path: "product/hand.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles},
-		{Path: "product/renamed.md", Reason: plan.ReasonRename, Evidence: plan.EvidenceHunks, Base: baseC},
-		{Path: "product/stale.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceHunks, Base: baseB},
+		{Path: "product/big.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceFiles, RoutedPaths: []string{"big/1.go"}},
+		{Path: "product/diverged.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles, RoutedPaths: []string{"src/a.go"}},
+		{Path: "product/hand.md", Reason: plan.ReasonBackfill, Evidence: plan.EvidenceFiles, RoutedPaths: []string{"README.md"}},
+		{Path: "product/renamed.md", Reason: plan.ReasonRename, Evidence: plan.EvidenceHunks, Base: baseC, RoutedPaths: []string{"new/r.go"}},
+		// No recorded routed set: src/a.go is not planned as widened.
+		{Path: "product/stale.md", Reason: plan.ReasonStale, Evidence: plan.EvidenceHunks, Base: baseB, RoutedPaths: []string{"src/a.go", "src/b.go"}},
 	}
 	if !reflect.DeepEqual(p.Reconcile.Pages, wantEntries) {
 		t.Errorf("entries = %+v\nwant      %+v", p.Reconcile.Pages, wantEntries)
@@ -362,6 +363,7 @@ func TestTelemetry(t *testing.T) {
 		"okf.reconcile.pages.backfill":      int64(2),
 		"okf.reconcile.pages.stale":         int64(2),
 		"okf.reconcile.pages.rename":        int64(1),
+		"okf.reconcile.pages.widened":       int64(0),
 	}
 	for k, v := range want {
 		if got[k] != v {
@@ -398,6 +400,7 @@ func TestTelemetry(t *testing.T) {
 		"okf.reconcile.pages{backfill}":     2,
 		"okf.reconcile.pages{stale}":        2,
 		"okf.reconcile.pages{rename}":       1,
+		"okf.reconcile.pages{widened}":      0,
 		"okf.reconcile.deletion_candidates": 2,
 		"okf.reconcile.re_anchors":          1,
 	}
