@@ -119,12 +119,12 @@ Runs of `Source`s that share a knowledge repo SHALL never overlap. A `Source` wh
 
 ### Requirement: Dismiss stale approvals
 
-When a gate run fails on head H, the controller SHALL dismiss, with the review App, every approving review the review App posted on commit H.
+A run that pushes nothing SHALL gate the bot PR head again, without a review, when that head is the one the controller last pushed and it still holds the plan behind it. When a gate run fails on head H, the controller SHALL dismiss, with the review App, every approving review the review App posted on commit H.
 
 #### Scenario: Gate fails on an approved head
 
-- **WHEN** the review App approved head H and a later gate run on H fails
-- **THEN** that approval is dismissed through `PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`
+- **WHEN** the review App approved head H, and a later run that pushes nothing gates H again and the gate fails
+- **THEN** that approval is dismissed through `PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, and nothing is reviewed or approved
 
 ### Requirement: Secrets never leak
 

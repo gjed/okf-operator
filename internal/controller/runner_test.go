@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/gjed/okf-operator/api/v1alpha1"
 	"github.com/gjed/okf-operator/internal/github"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 )
 
 const (
@@ -296,5 +298,43 @@ func TestSecretsNeverLeak(t *testing.T) {
 				t.Errorf("%s leaked into %s", name, sink)
 			}
 		}
+	}
+}
+
+// A run that pushes nothing gates the open bot PR's head again when the
+// controller remembers the plan behind that head, and leaves it alone
+// otherwise.
+func TestRunnerRegatesAnUnchangedHead(t *testing.T) {
+	m := newModel(t, pageReply)
+	fake, head, _, r, _, runLogs := newRunFixture(t, m, 0)
+	fake.SetFile("acme/kb", "kb-state", "cursors/acme/api", head+"\n")
+	fake.SetFile("acme/kb", "okf/acme/api", runPagePath, runOldPage+"\nbot edit\n")
+	n := fake.AddPullRequest("acme/kb", githubtest.PullRequest{Head: "okf/acme/api", Base: "main", State: "open"})
+	gatePath := "/repos/acme/kb/pulls/" + strconv.Itoa(n)
+	gated := func() bool {
+		for _, req := range fake.Requests() {
+			if strings.HasSuffix(req, gatePath) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, r, "api").Status; st.LastError != "" || gated() {
+		t.Fatalf("status %+v, gated %v without a remembered plan\n%s", st, gated(), runLogs.String())
+	}
+
+	runner := r.Pipeline.(*Runner)
+	runner.gated.put("acme/kb acme/api", fake.Ref("acme/kb", "okf/acme/api"), &plan.Plan{Version: plan.Version, Source: "acme/api"})
+	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	// The fake serves no PR for the gate, so the gate fails the run; that it
+	// ran at all is the point.
+	if st := getSource(t, r, "api").Status; !strings.HasPrefix(st.LastError, "gate: ") || !gated() {
+		t.Fatalf("status %+v, gated %v", st, gated())
 	}
 }

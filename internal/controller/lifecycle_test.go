@@ -15,6 +15,7 @@ import (
 	"github.com/gjed/okf-operator/internal/gate"
 	"github.com/gjed/okf-operator/internal/github"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 )
 
 func tokenClients(t *testing.T, apiURL string) github.Clients {
@@ -181,5 +182,34 @@ func TestGateAndApproveOrder(t *testing.T) {
 				t.Fatalf("calls %v, outcome %+v", s.calls, out)
 			}
 		})
+	}
+}
+
+func TestRegateDismissesWhenTheHeadNoLongerPasses(t *testing.T) {
+	head := strings.Repeat("4", 40)
+	for _, tt := range []struct {
+		pass bool
+		want []string
+	}{
+		{false, []string{"gate", "dismiss " + head}},
+		{true, []string{"gate"}},
+	} {
+		s := &fakeStages{gates: []bool{tt.pass}, head: head}
+		var out Outcome
+		if err := regate(context.Background(), s, &out); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(s.calls, tt.want) || out.Approved {
+			t.Fatalf("pass %v: calls %v, outcome %+v", tt.pass, s.calls, out)
+		}
+	}
+}
+
+func TestGatedPlansMatchTheHead(t *testing.T) {
+	var g gatedPlans
+	p := &plan.Plan{Source: "acme/api"}
+	g.put("k", "h1", p)
+	if g.get("k", "h1") != p || g.get("k", "h2") != nil || g.get("other", "h1") != nil {
+		t.Fatal("gated plan lookup")
 	}
 }
