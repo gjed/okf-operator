@@ -60,6 +60,9 @@ const (
 	ReasonBackfill = "backfill"
 	ReasonStale    = "stale"
 	ReasonRename   = "rename"
+	// ReasonWidened plans a page whose route now covers files it does not
+	// reflect and that are unchanged since its source_sha.
+	ReasonWidened = "widened"
 )
 
 // Evidence kinds of a reconcile page.
@@ -77,11 +80,14 @@ type Reconcile struct {
 
 // ReconcilePage says why a page is planned and what write sends as evidence:
 // the compare patches of Base..to, or the whole source files at to.
+// RoutedPaths, every path routed to the page at to, is what write stamps as
+// the page's routed_paths; plans from before it existed omit it.
 type ReconcilePage struct {
-	Path     string `json:"path"`
-	Reason   string `json:"reason"`
-	Evidence string `json:"evidence"`
-	Base     string `json:"base"`
+	Path        string   `json:"path"`
+	Reason      string   `json:"reason"`
+	Evidence    string   `json:"evidence"`
+	Base        string   `json:"base"`
+	RoutedPaths []string `json:"routed_paths,omitempty"`
 }
 
 // DeletionCandidate is a page whose routes and source paths match nothing at

@@ -163,8 +163,10 @@ func checkReconcile(p *plan.Plan) error {
 			return fmt.Errorf("reconcile page %s is not a plan page", rp.Path)
 		case seen[rp.Path]:
 			return fmt.Errorf("reconcile page %s is listed twice", rp.Path)
-		case rp.Reason != plan.ReasonBackfill && rp.Reason != plan.ReasonStale && rp.Reason != plan.ReasonRename:
+		case !slices.Contains([]string{plan.ReasonBackfill, plan.ReasonStale, plan.ReasonRename, plan.ReasonWidened}, rp.Reason):
 			return fmt.Errorf("reconcile page %s has unknown reason %q", rp.Path, rp.Reason)
+		case !sortedPaths(rp.RoutedPaths):
+			return fmt.Errorf("reconcile page %s has routed_paths that are not sorted, unique, non-empty paths", rp.Path)
 		case rp.Evidence == plan.EvidenceHunks && !cursor.ValidSHA(rp.Base):
 			return fmt.Errorf("reconcile page %s has evidence hunks but base %q is not a full commit SHA", rp.Path, rp.Base)
 		case rp.Evidence == plan.EvidenceFiles && rp.Base != "":
@@ -180,6 +182,16 @@ func checkReconcile(p *plan.Plan) error {
 		}
 	}
 	return nil
+}
+
+// sortedPaths reports whether ps is strictly increasing with no empty path.
+func sortedPaths(ps []string) bool {
+	for i, p := range ps {
+		if p == "" || i > 0 && ps[i-1] >= p {
+			return false
+		}
+	}
+	return true
 }
 
 // Encode writes r as indented JSON. The same report always encodes to the same bytes.
@@ -297,6 +309,7 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 		}
 		f := fields
 		f.SourcePaths = slices.Sorted(slices.Values(j.page.SourcePaths))
+		f.RoutedPaths = routedPaths(p, j)
 		n, err := process(ctx, j, f, d)
 		failures += n
 		if err != nil {
@@ -317,6 +330,41 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 	slices.SortFunc(rep.Pages, func(a, b PageResult) int { return strings.Compare(a.Path, b.Path) })
 	record(ctx, rep, failures)
 	return rep, nil
+}
+
+// routedPaths is the routed_paths to stamp on j's page: its reconcile entry's
+// routed_paths, else the current page's routed_paths (none for a create) plus
+// its source_paths, minus the paths the plan reports removed or renamed away.
+// It is nil, an unknown set, when the current page records none.
+func routedPaths(p *plan.Plan, j *job) []string {
+	if rp, ok := p.ReconcilePage(j.page.Path); ok && rp.RoutedPaths != nil {
+		return slices.Clone(rp.RoutedPaths)
+	}
+	var known []string
+	if !j.create {
+		f, _, err := provenance.Parse(j.current)
+		if err != nil || f.RoutedPaths == nil {
+			return nil
+		}
+		known = f.RoutedPaths
+	}
+	gone := map[string]bool{}
+	for _, c := range p.ChangedPaths {
+		switch {
+		case c.Status == "removed":
+			gone[c.Path] = true
+		case c.Status == "renamed" && c.PreviousPath != "":
+			gone[c.PreviousPath] = true
+		}
+	}
+	out := []string{}
+	for _, sp := range slices.Concat(known, j.page.SourcePaths) {
+		if !gone[sp] {
+			out = append(out, sp)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // sourceData is what the source repo contributes to the prompts of a group of

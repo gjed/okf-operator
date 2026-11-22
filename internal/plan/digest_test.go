@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"testing"
@@ -33,5 +34,55 @@ func TestDigest(t *testing.T) {
 	p.Pages[0].SourcePaths = []string{"api/y.go"}
 	if d, _ := Digest(&p); d == a {
 		t.Error("a changed source path kept the digest")
+	}
+}
+
+// A version 2 plan printed before reconcile entries had routed_paths encodes
+// to the same bytes, so it keeps its digest.
+func TestReconcileEntryWithoutRoutedPathsKeepsEncoding(t *testing.T) {
+	const doc = `{
+  "version": 2,
+  "source": "acme/api",
+  "bundle": "product",
+  "from": "",
+  "to": "b",
+  "initial": true,
+  "changed_paths": [],
+  "pages": [
+    {
+      "path": "product/api.md",
+      "state": "update",
+      "type": "",
+      "source_paths": [
+        "api/x.go"
+      ]
+    }
+  ],
+  "unrouted": [],
+  "excluded": [],
+  "reconcile": {
+    "cursor": "missing",
+    "pages": [
+      {
+        "path": "product/api.md",
+        "reason": "backfill",
+        "evidence": "files",
+        "base": ""
+      }
+    ],
+    "deletion_candidates": []
+  }
+}
+`
+	var p Plan
+	if err := json.Unmarshal([]byte(doc), &p); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := Encode(&out, &p); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != doc {
+		t.Errorf("encoding =\n%s\nwant\n%s", out.String(), doc)
 	}
 }

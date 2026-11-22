@@ -150,6 +150,14 @@ func TestDecodeReconcilePlan(t *testing.T) {
 		"hunks without base":     {mutate: entry(func(e map[string]any) { e["base"] = "" }), wantErr: true},
 		"files with base":        {mutate: entry(func(e map[string]any) { e["evidence"] = "files" }), wantErr: true},
 		"unknown entry key":      {mutate: entry(func(e map[string]any) { e["extra"] = 1 }), wantErr: true},
+		"widened": {mutate: entry(func(e map[string]any) {
+			e["reason"], e["evidence"], e["base"] = "widened", "files", ""
+		})},
+		"routed paths":            {mutate: entry(func(e map[string]any) { e["routed_paths"] = []string{"src/a.go", "src/b.go"} })},
+		"unsorted routed paths":   {mutate: entry(func(e map[string]any) { e["routed_paths"] = []string{"src/b.go", "src/a.go"} }), wantErr: true},
+		"duplicate routed paths":  {mutate: entry(func(e map[string]any) { e["routed_paths"] = []string{"src/a.go", "src/a.go"} }), wantErr: true},
+		"empty routed path":       {mutate: entry(func(e map[string]any) { e["routed_paths"] = []string{""} }), wantErr: true},
+		"routed paths not a list": {mutate: entry(func(e map[string]any) { e["routed_paths"] = "src/a.go" }), wantErr: true},
 		"page without entry": {mutate: func(d map[string]any) {
 			valid(d)
 			d["reconcile"].(map[string]any)["pages"] = []any{}
