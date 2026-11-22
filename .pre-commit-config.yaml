@@ -10,7 +10,12 @@ repos:
     hooks:
       # pnpm writes a multi-document lockfile that is generated, not hand-edited.
       - id: check-yaml
-        exclude: ^pnpm-lock\.yaml$
+        exclude: ^(pnpm-lock\.yaml|deploy/.*\.yaml)$
+      # Kubernetes manifests hold several documents per file.
+      - id: check-yaml
+        name: check yaml (kubernetes manifests)
+        files: ^deploy/.*\.yaml$
+        args: [--allow-multiple-documents]
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-added-large-files

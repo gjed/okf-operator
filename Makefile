@@ -9,9 +9,18 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 build: ## Build the okf-operator binary
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o $(BINARY) $(CMD)
 
+# renovate: datasource=go depName=sigs.k8s.io/controller-runtime/tools/setup-envtest
+ENVTEST_VERSION     := v0.25.3
+ENVTEST_K8S_VERSION := 1.37.0
+ENVTEST_DIR         := $(CURDIR)/bin/envtest
+
+.PHONY: envtest
+envtest: ## Download the envtest API server and etcd; prints their directory
+	@go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_DIR) -p path
+
 .PHONY: test
-test: ## Run unit tests
-	go test ./...
+test: ## Run unit tests, controller tests against envtest included
+	KUBEBUILDER_ASSETS="$$($(MAKE) -s envtest)" go test ./...
 
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
 CONTROLLER_GEN_VERSION := v0.23.0
