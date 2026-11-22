@@ -54,6 +54,9 @@ Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping,
 | `source_paths` | The page's routed source paths, sorted           |
 | `updated_at`   | Time of the run, RFC 3339 UTC                    |
 | `generated_by` | `okf-operator/<version>/<model>`                 |
+| `routed_paths` | The source files the page reflects, sorted       |
+
+`routed_paths` is what lets `reconcile` notice a route widened to unchanged files; see [Reconciling a source](reconcile.md#widened-routes). `write` sets it to the reconcile entry's `routed_paths` when the plan has one. Otherwise it takes the page's current `routed_paths`, adds the page's `source_paths` and drops the files the plan's `changed_paths` report as removed or renamed away. A created page records its `source_paths`. A page that has no `routed_paths` yet keeps none, and a model-written value is removed.
 
 Other frontmatter keys keep their order and values. A reply that matches the current page apart from these keys counts as unchanged and the file is not touched.
 
