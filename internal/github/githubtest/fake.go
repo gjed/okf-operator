@@ -28,6 +28,9 @@ type Fake struct {
 	// InstallationToken is returned by every access_tokens request.
 	InstallationToken string
 
+	// AppSlug is returned by GET /app.
+	AppSlug string
+
 	// FailStatus makes requests to a URL path answer with that status.
 	// A key "METHOD /path" matches only that method.
 	FailStatus map[string]int
@@ -138,6 +141,7 @@ func New(t testing.TB) *Fake {
 	t.Helper()
 	f := &Fake{
 		InstallationToken: "ghs_fakeInstallationToken0123456789",
+		AppSlug:           "okf-writer",
 		FailStatus:        map[string]int{},
 		git:               map[string]*gitRepo{},
 		repos:             map[string][2]string{},
@@ -150,6 +154,7 @@ func New(t testing.TB) *Fake {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
+	mux.HandleFunc("GET /app", f.app)
 	mux.HandleFunc("POST /app/installations/{id}/access_tokens", f.accessToken)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/contents/{path...}", f.contents)
 	mux.HandleFunc("PUT /repos/{owner}/{repo}/contents/{path...}", f.putContents)
@@ -253,6 +258,17 @@ func (f *Fake) installation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{"id": 42})
+}
+
+func (f *Fake) app(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ey") {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"message": "A JSON web token could not be decoded"})
+		return
+	}
+	f.mu.Lock()
+	slug := f.AppSlug
+	f.mu.Unlock()
+	WriteJSON(w, http.StatusOK, map[string]any{"id": 1, "slug": slug})
 }
 
 func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {

@@ -42,10 +42,12 @@ type Config struct {
 	Token  string
 }
 
-// AppConfig is a GitHub App identity.
+// AppConfig is a GitHub App identity. Key, when set, is the PEM private key
+// held in memory and KeyFile is ignored.
 type AppConfig struct {
 	ID      int64
 	KeyFile string
+	Key     []byte
 }
 
 // CredentialNames are the flags and environment variables one identity is

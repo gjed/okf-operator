@@ -6,7 +6,7 @@
 
 ## 2. GitHub access for the controller
 
-- [ ] 2.1 Let `internal/github` take an App private key from memory and resolve the App slug with `GET /app`; verify tests for an in-memory key minting a token and the slug lookup with the key redacted
+- [x] 2.1 Let `internal/github` take an App private key from memory and resolve the App slug with `GET /app`; verify tests for an in-memory key minting a token and the slug lookup with the key redacted
 
 ## 3. Controller
 
