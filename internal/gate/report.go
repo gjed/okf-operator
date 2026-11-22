@@ -10,8 +10,9 @@ import (
 	"slices"
 )
 
-// Version is the report JSON contract version.
-const Version = 1
+// Version is the report JSON contract version. Version 2 added
+// knowledge_repo, base_sha and plan_digest.
+const Version = 2
 
 // Rule names, in report order.
 const (
@@ -27,11 +28,16 @@ const (
 
 // Report is the JSON document `gate` prints. Field order is the output order.
 type Report struct {
-	Version int      `json:"version"`
-	PR      int      `json:"pr"`
-	HeadSHA string   `json:"head_sha"`
-	Pass    bool     `json:"pass"`
-	Rules   []Result `json:"rules"`
+	Version       int    `json:"version"`
+	KnowledgeRepo string `json:"knowledge_repo"`
+	PR            int    `json:"pr"`
+	HeadSHA       string `json:"head_sha"`
+	// BaseSHA is the base branch tip the policy and routing were read at.
+	BaseSHA string `json:"base_sha"`
+	// PlanDigest identifies the plan the PR was checked against (plan.Digest).
+	PlanDigest string   `json:"plan_digest"`
+	Pass       bool     `json:"pass"`
+	Rules      []Result `json:"rules"`
 }
 
 // Result is the outcome of one rule. Details is empty when the rule passes.

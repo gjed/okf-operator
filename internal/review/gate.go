@@ -26,5 +26,5 @@ func (r *Result) GateInput() gate.Review {
 	if len(r.Pages) == 0 {
 		details = append(details, "no changed page was reviewed")
 	}
-	return gate.Review{PR: r.PR, HeadSHA: r.HeadSHA, Pass: pass, Details: details}
+	return gate.Review{KnowledgeRepo: r.KnowledgeRepo, PR: r.PR, HeadSHA: r.HeadSHA, BaseSHA: r.BaseSHA, PlanDigest: r.PlanDigest, Pass: pass, Details: details}
 }

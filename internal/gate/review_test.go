@@ -7,13 +7,34 @@ import (
 	"testing"
 
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 )
 
 func (f *fixture) evaluateReview(t *testing.T, rv *Review) (*Report, error) {
 	t.Helper()
 	f.fake.SetPull(kbRepo, prNumber, githubtest.Pull{Head: headSHA, BaseRef: "main"})
 	f.fake.SetPullFiles(kbRepo, prNumber, f.files)
-	return Evaluate(context.Background(), Deps{Reader: f.reader, Commits: f.commits, Review: rv}, kbRepo, prNumber, f.plan)
+	return Evaluate(context.Background(), Deps{Reader: f.reader, Commits: f.commits, Review: f.bind(t, rv)}, kbRepo, prNumber, f.plan)
+}
+
+// bind returns a copy of rv with every empty binding set to what the fixture
+// evaluates: acme/kb, the base commit and the plan's digest.
+func (f *fixture) bind(t *testing.T, rv *Review) *Review {
+	t.Helper()
+	b := *rv
+	digest, err := plan.Digest(f.plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kv := range []struct {
+		field *string
+		value string
+	}{{&b.KnowledgeRepo, kbRepo}, {&b.BaseSHA, baseSHA}, {&b.PlanDigest, digest}} {
+		if *kv.field == "" {
+			*kv.field = kv.value
+		}
+	}
+	return &b
 }
 
 func passingReview() *Review { return &Review{PR: prNumber, HeadSHA: headSHA, Pass: true} }
@@ -62,6 +83,9 @@ func TestReviewForAnotherPRFails(t *testing.T) {
 	for name, rv := range map[string]*Review{
 		"other head": {PR: prNumber, HeadSHA: baseSHA, Pass: true},
 		"other PR":   {PR: prNumber + 1, HeadSHA: headSHA, Pass: true},
+		"other repo": {KnowledgeRepo: "acme/other", PR: prNumber, HeadSHA: headSHA, Pass: true},
+		"other base": {PR: prNumber, HeadSHA: headSHA, BaseSHA: headSHA, Pass: true},
+		"other plan": {PR: prNumber, HeadSHA: headSHA, PlanDigest: "sha256:0000", Pass: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r, err := newFixture(t).evaluateReview(t, rv)
@@ -110,7 +134,7 @@ func TestDecodeReport(t *testing.T) {
 		t.Fatalf("round trip differs (%v)", err)
 	}
 	for name, doc := range map[string]string{
-		"version 2":     strings.Replace(a.String(), `"version": 1`, `"version": 2`, 1),
+		"version 1":     strings.Replace(a.String(), `"version": 2`, `"version": 1`, 1),
 		"unknown field": strings.Replace(a.String(), `"pass"`, `"merge": true, "pass"`, 1),
 		"two documents": a.String() + a.String(),
 		"trailing ]":    a.String() + "]",

@@ -43,13 +43,18 @@ const statusRemoved = "removed"
 
 // Result is the JSON document `review` prints. Field order is the output order.
 type Result struct {
-	Version int    `json:"version"`
-	PR      int    `json:"pr"`
-	HeadSHA string `json:"head_sha"`
-	Model   string `json:"model"`
-	Pass    bool   `json:"pass"`
-	Pages   []Page `json:"pages"`
-	Tokens  Tokens `json:"tokens"`
+	Version       int    `json:"version"`
+	KnowledgeRepo string `json:"knowledge_repo"`
+	PR            int    `json:"pr"`
+	HeadSHA       string `json:"head_sha"`
+	// BaseSHA is the base branch tip the pages before were read at.
+	BaseSHA string `json:"base_sha"`
+	// PlanDigest identifies the plan the pages were reviewed against (plan.Digest).
+	PlanDigest string `json:"plan_digest"`
+	Model      string `json:"model"`
+	Pass       bool   `json:"pass"`
+	Pages      []Page `json:"pages"`
+	Tokens     Tokens `json:"tokens"`
 }
 
 // Page is the verdict for one changed page. Reason is empty when the model
@@ -113,7 +118,11 @@ func Run(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*Result
 		planned[pg.Path] = pg
 	}
 
-	res := &Result{Version: Version, PR: pr.Number, HeadSHA: pr.HeadSHA, Model: d.ModelName}
+	digest, err := plan.Digest(p)
+	if err != nil {
+		return nil, err
+	}
+	res := &Result{Version: Version, KnowledgeRepo: repo, PR: pr.Number, HeadSHA: pr.HeadSHA, BaseSHA: pr.BaseSHA, PlanDigest: digest, Model: d.ModelName}
 	var pages []*Page
 	var jobs []*job
 	for _, f := range pr.Files {

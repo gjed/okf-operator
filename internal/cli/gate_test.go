@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
+	"github.com/gjed/okf-operator/internal/write"
 )
 
 const (
@@ -162,11 +164,32 @@ func TestGateRuntimeErrorsExit1(t *testing.T) {
 	}
 }
 
-func writeReview(t *testing.T, pr int, head string, pass bool) string {
+// reviewBinding is what a review result for gateFixture's PR 7 is bound to.
+type reviewBinding struct {
+	repo       string
+	pr         int
+	head, base string
+	digest     string
+}
+
+func gateBinding(t *testing.T) reviewBinding {
 	t.Helper()
-	doc := fmt.Sprintf(`{"version":1,"pr":%d,"head_sha":%q,"model":"r1","pass":%t,
+	p, err := write.DecodePlan(strings.NewReader(gatePlan))
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := plan.Digest(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reviewBinding{repo: "acme/kb", pr: 7, head: gateHead, base: gateBase, digest: digest}
+}
+
+func writeReview(t *testing.T, b reviewBinding, pass bool) string {
+	t.Helper()
+	doc := fmt.Sprintf(`{"version":1,"knowledge_repo":%q,"pr":%d,"head_sha":%q,"base_sha":%q,"plan_digest":%q,"model":"r1","pass":%t,
 "pages":[{"path":"product/api.md","pass":%t,"reason":"","unsupported":%s}],"tokens":{"prompt":1,"completion":1}}`,
-		pr, head, pass, pass, map[bool]string{true: `[]`, false: `["Made up."]`}[pass])
+		b.repo, b.pr, b.head, b.base, b.digest, pass, pass, map[bool]string{true: `[]`, false: `["Made up."]`}[pass])
 	file := filepath.Join(t.TempDir(), "review.json")
 	if err := os.WriteFile(file, []byte(doc), 0o600); err != nil {
 		t.Fatal(err)
@@ -177,7 +200,7 @@ func writeReview(t *testing.T, pr int, head string, pass bool) string {
 func TestGateWithReview(t *testing.T) {
 	_, planFile := gateFixture(t)
 	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
-	reviewFile := writeReview(t, 7, gateHead, false)
+	reviewFile := writeReview(t, gateBinding(t), false)
 	var outs [2]string
 	for i := range outs {
 		code, out, errOut := runCLI(t, BuildInfo{}, gateArgs(planFile, "--review", reviewFile)...)
@@ -210,13 +233,21 @@ func TestGateWithReview(t *testing.T) {
 func TestGateReviewMismatchExit1(t *testing.T) {
 	_, planFile := gateFixture(t)
 	t.Setenv("GITHUB_TOKEN", "ghp_test0123456789")
+	with := func(change func(*reviewBinding)) string {
+		b := gateBinding(t)
+		change(&b)
+		return writeReview(t, b, true)
+	}
 	for name, file := range map[string]string{
-		"other head": writeReview(t, 7, gateBase, true),
-		"other PR":   writeReview(t, 8, gateHead, true),
+		"other head": with(func(b *reviewBinding) { b.head = gateBase }),
+		"other PR":   with(func(b *reviewBinding) { b.pr = 8 }),
+		"other repo": with(func(b *reviewBinding) { b.repo = "acme/other" }),
+		"other base": with(func(b *reviewBinding) { b.base = gateHead }),
+		"other plan": with(func(b *reviewBinding) { b.digest = "sha256:0000" }),
 	} {
 		t.Run(name, func(t *testing.T) {
 			code, out, errOut := runCLI(t, BuildInfo{}, gateArgs(planFile, "--review", file)...)
-			if code != 1 || out != "" || !strings.Contains(errOut, "review result is for PR") {
+			if code != 1 || out != "" || !strings.Contains(errOut, "review result is for other inputs") {
 				t.Fatalf("exit %d, stdout %q, stderr:\n%s", code, out, errOut)
 			}
 		})

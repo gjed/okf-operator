@@ -10,7 +10,7 @@ import (
 var update = flag.Bool("update", false, "rewrite golden files")
 
 func fixtureReport() *Report {
-	r := &Report{Version: Version, PR: 42, HeadSHA: headSHA}
+	r := &Report{Version: Version, KnowledgeRepo: kbRepo, PR: 42, HeadSHA: headSHA, BaseSHA: baseSHA, PlanDigest: "sha256:4f1b"}
 	r.Add(newResult(RuleProvenance, nil))
 	r.Add(newResult(RuleRoutedSet, nil))
 	r.Add(newResult(RuleAllowlist, []string{`product/z.md: type "Runbook" is not allowed`, `product/a.md: type "Runbook" is not allowed`}))
