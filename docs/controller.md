@@ -105,6 +105,7 @@ The bot logins come from `GET /app` and are learned on each knowledge base's fir
 1. `plan`, or `reconcile` when `reconcileInterval` has passed since the last reconcile run (or since the `Source` was created).
 1. `write` against the checkout, then `propose` with the checkout commit as the knowledge base.
 1. Only for a `plan` run whose `propose` opened or updated the PR: `gate` without the review. If it passes, read the review App Secret and the reviewer model key, run `review`, `gate` with the review result, and `approve` with the review App.
+1. A run whose `propose` pushed nothing, while the bot PR head is still the one the controller last pushed, runs `gate` without the review on that head again, with the plan remembered from that push. It never reviews or approves again.
 
 The deterministic gate runs first, so a PR that can never auto-merge costs no reviewer tokens. A reconcile PR always goes to a human, and a run whose `propose` pushed nothing does not gate. `review` reads GitHub as the writer App: the review App is installed on the knowledge repo only and is used to approve and dismiss.
 
@@ -116,7 +117,9 @@ Each run holds an in-memory lock keyed by the lower-cased knowledge repo. A `Sou
 
 ### Stale approvals
 
-When a gate run on head H fails, the controller dismisses, as the review App, every `APPROVED` review the review App posted on H (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, covered by **Pull requests** write). Branch protection then stops counting an approval of a head whose latest gate failed, which "Dismiss stale pull request approvals" does not do without a new commit.
+Every run that pushes nothing gates the unchanged bot PR head again, so a policy or routing change on the base branch is seen without a new commit. When a gate run on head H fails, the controller dismisses, as the review App, every `APPROVED` review the review App posted on H (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, covered by **Pull requests** write). Branch protection then stops counting an approval of a head whose latest gate failed, which "Dismiss stale pull request approvals" does not do without a new commit.
+
+The plan behind the head is kept in memory: after a restart, a head is gated again only once a run pushes to it.
 
 Publishing the gate result as a required check run was rejected: it needs **Checks** write on the writer App and a check that branch protection must require, next to the approval the review App already posts.
 

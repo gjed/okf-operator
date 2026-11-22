@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	gogithub "github.com/google/go-github/v93/github"
@@ -55,6 +56,43 @@ type Runner struct {
 	ToolVersion string
 	Logger      *slog.Logger
 	Now         func() time.Time
+
+	gated gatedPlans
+}
+
+// gatedPlans remembers, per knowledge repo and source, the plan behind the
+// bot PR head the controller last pushed, so later runs that push nothing
+// can gate that head again.
+//
+// SIMPLIFIED: kept in memory, so after a restart a head is gated again only
+// once a run pushes to it. Upgrade path: store the plan on kb-state.
+type gatedPlans struct {
+	mu sync.Mutex
+	m  map[string]gatedPlan
+}
+
+type gatedPlan struct {
+	head string
+	plan *plan.Plan
+}
+
+func (g *gatedPlans) put(key, head string, p *plan.Plan) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.m == nil {
+		g.m = map[string]gatedPlan{}
+	}
+	g.m[key] = gatedPlan{head: head, plan: p}
+}
+
+// get returns the plan behind head, if head is the one last pushed.
+func (g *gatedPlans) get(key, head string) *plan.Plan {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if gp, ok := g.m[key]; ok && gp.head == head {
+		return gp.plan
+	}
+	return nil
 }
 
 // run is the state of one Run.
@@ -269,12 +307,34 @@ func (r *run) pipeline(ctx context.Context) error {
 		r.out.PR = &v1alpha1.PullRequest{Number: res.PR.Number, URL: res.PR.URL}
 	}
 	r.out.Proposed = res.Action == propose.ActionOpened || res.Action == propose.ActionUpdated
-	// A reconcile PR always goes to a human, and a run that pushed nothing
-	// has no PR head of its own plan to gate.
-	if p.Version != plan.Version || !r.out.Proposed || res.PR == nil {
+	key := strings.ToLower(r.kbRepo + " " + r.source)
+	if !r.out.Proposed {
+		// The head is unchanged: gate it again with the plan behind it, so a
+		// policy change on the base dismisses an approval that no longer holds.
+		if gp := r.gated.get(key, h.base); gp != nil && r.out.PR != nil {
+			return regate(ctx, &githubPRStages{run: r, pr: r.out.PR.Number, plan: gp, kbRead: kbRead, srcRead: srcRead}, &r.out)
+		}
 		return nil
 	}
+	// A reconcile PR always goes to a human.
+	if p.Version != plan.Version || res.PR == nil {
+		return nil
+	}
+	r.gated.put(key, res.Commit, p)
 	return gateAndApprove(ctx, &githubPRStages{run: r, pr: res.PR.Number, plan: p, kbRead: kbRead, srcRead: srcRead}, &r.out)
+}
+
+// regate runs the deterministic gate on a head the controller gated before
+// and dismisses the review App's approvals of it when the gate now fails. It
+// never reviews or approves again.
+func regate(ctx context.Context, s prStages, out *Outcome) error {
+	rep, err := s.Gate(ctx, nil)
+	if err != nil || rep.Pass {
+		return err
+	}
+	n, err := s.Dismiss(ctx, rep.HeadSHA)
+	out.Dismissed += n
+	return err
 }
 
 func (r *run) model(m v1alpha1.Model, key string) *model.Client {
