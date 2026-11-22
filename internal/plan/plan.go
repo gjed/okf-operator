@@ -4,8 +4,11 @@ package plan
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -59,6 +62,17 @@ func Encode(w io.Writer, p *Plan) error {
 	enc.SetIndent("", "  ")
 	enc.SetEscapeHTML(false)
 	return enc.Encode(p)
+}
+
+// Digest identifies p: "sha256:" and the hex SHA-256 of its Encode output.
+// Encode is canonical for a decoded plan, so the same plan has the same
+// digest however its file was formatted.
+func Digest(p *Plan) (string, error) {
+	h := sha256.New()
+	if err := Encode(h, p); err != nil {
+		return "", fmt.Errorf("digest plan: %w", err)
+	}
+	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // Errors that require `reconcile`.
