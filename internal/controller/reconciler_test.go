@@ -248,3 +248,15 @@ func TestRunsSerialisedPerKnowledgeRepo(t *testing.T) {
 		t.Fatalf("max concurrent runs on acme/kb = %d, want 1", maxRunning["acme/kb"])
 	}
 }
+
+func TestLeaderCheck(t *testing.T) {
+	elected := make(chan struct{})
+	check := leaderCheck(elected)
+	if check(nil) == nil {
+		t.Fatal("Ready before the Lease is held")
+	}
+	close(elected)
+	if err := check(nil); err != nil {
+		t.Fatal(err)
+	}
+}
