@@ -1,0 +1,197 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.23.0
+  name: sources.okf.dev
+spec:
+  group: okf.dev
+  names:
+    kind: Source
+    listKind: SourceList
+    plural: sources
+    shortNames:
+    - okfsrc
+    singular: source
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.repository
+      name: Repository
+      type: string
+    - jsonPath: .spec.knowledgeBaseRef.name
+      name: KnowledgeBase
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.lastCursor
+      name: Cursor
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Source is one source repository the controller keeps a knowledge base in
+          sync with.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SourceSpec is one source repository feeding a knowledge base.
+            properties:
+              knowledgeBaseRef:
+                description: KnowledgeBaseRef names the KnowledgeBase this source
+                  feeds.
+                properties:
+                  name:
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              reconcileInterval:
+                default: 168h
+                description: |-
+                  ReconcileInterval is the time between two reconcile runs, weekly by
+                  default. 0s disables them.
+                type: string
+              repository:
+                description: Repository is the source repo, owner/name.
+                pattern: ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$
+                type: string
+              requeueInterval:
+                default: 1h
+                description: RequeueInterval is the longest time between two runs
+                  without a webhook.
+                type: string
+            required:
+            - knowledgeBaseRef
+            - repository
+            type: object
+          status:
+            description: |-
+              SourceStatus is what the last runs did. The cursor itself lives on the
+              knowledge repo's kb-state branch; LastCursor is informational.
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              lastCursor:
+                description: |-
+                  LastCursor is the commit the cursor held after the last successful run.
+                  Runs never read it: the cursor on kb-state is the source of truth.
+                type: string
+              lastError:
+                description: LastError is the redacted error of the last run, empty
+                  after a success.
+                type: string
+              lastPR:
+                description: LastPR is the knowledge PR the last successful run opened
+                  or updated.
+                properties:
+                  number:
+                    type: integer
+                  url:
+                    type: string
+                required:
+                - number
+                type: object
+              lastReconcileTime:
+                description: LastReconcileTime is when the last successful reconcile
+                  run finished.
+                format: date-time
+                type: string
+              lastRunMode:
+                description: LastRunMode is plan or reconcile.
+                type: string
+              lastRunTime:
+                description: LastRunTime is when the last run finished.
+                format: date-time
+                type: string
+              observedGeneration:
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

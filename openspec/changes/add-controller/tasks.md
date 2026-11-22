@@ -2,7 +2,7 @@
 
 ## 1. API and generated files
 
-- [ ] 1.1 Add `api/v1alpha1` with `KnowledgeBase` and `Source` (group `okf.dev`), a pinned `controller-gen` behind `make generate` writing deepcopy code and CRDs to `deploy/crds/`, and a CI step that fails when `make generate` leaves a diff; verify with `make generate && git diff --exit-code` and `go build ./...`
+- [x] 1.1 Add `api/v1alpha1` with `KnowledgeBase` and `Source` (group `okf.dev`), a pinned `controller-gen` behind `make generate` writing deepcopy code and CRDs to `deploy/crds/`, and a CI step that fails when `make generate` leaves a diff; verify with `make generate && git diff --exit-code` and `go build ./...`
 
 ## 2. GitHub access for the controller
 
