@@ -2,6 +2,7 @@ package review
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -27,17 +28,19 @@ type hunk struct {
 }
 
 // render fills the review template. Every value is untrusted and neutralised
-// first, so none can close its block.
+// first, so none can close its block. Paths are quoted, so a quote or a
+// newline in a file name cannot leave its header or line.
 func render(d promptData) (string, error) {
-	d.Path, d.Before, d.After = prompts.Neutralise(d.Path), prompts.Neutralise(d.Before), prompts.Neutralise(d.After)
+	name := d.Path
+	d.Path, d.Before, d.After = strconv.Quote(prompts.Neutralise(d.Path)), prompts.Neutralise(d.Before), prompts.Neutralise(d.After)
 	hunks := make([]hunk, len(d.Hunks))
 	for i, h := range d.Hunks {
-		hunks[i] = hunk{Path: prompts.Neutralise(h.Path), Patch: prompts.Neutralise(h.Patch)}
+		hunks[i] = hunk{Path: strconv.Quote(prompts.Neutralise(h.Path)), Patch: prompts.Neutralise(h.Patch)}
 	}
 	d.Hunks = hunks
 	var b strings.Builder
 	if err := reviewTemplate.Execute(&b, d); err != nil {
-		return "", fmt.Errorf("render review prompt for %s: %w", d.Path, err)
+		return "", fmt.Errorf("render review prompt for %s: %w", name, err)
 	}
 	return b.String(), nil
 }
