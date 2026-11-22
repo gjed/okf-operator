@@ -22,7 +22,7 @@ One request per page with state `update`. The prompts are embedded in the binary
 1. The template for the page's `type` from `.kb/templates/<type>.md`, if it exists.
 1. Up to two style-reference pages from the same bundle.
 1. The current page.
-1. The source data, in a block the prompt marks as untrusted: the titles and bodies of the merged PRs behind the range's commits (bodies capped at 4 KiB, at most 16 KiB of PR text per prompt, newest PRs first, with a note of how many older ones were left out), and the compare patches of the page's `source_paths` only.
+1. The source data, in a block the prompt marks as untrusted: the titles and bodies of the merged PRs behind the range's commits (bodies capped at 4 KiB, at most 16 KiB of PR text per prompt, newest PRs first, with a note of how many older ones were left out), and the compare patches of the page's `source_paths` only. A reconcile plan sends other source data, see [Reconcile plans](#reconcile-plans).
 
 The model replies `NO_CHANGE` or the complete updated page.
 
@@ -112,8 +112,18 @@ Both limits are checked before the first model call. A run over either one exits
 | `validation_failed` | Two invalid replies, or no budget left for the retry                     |
 | `template_missing`  | The page has state `create` and its route's `type` has no template       |
 | `page_missing`      | The page has state `missing`                                             |
+| `file_unavailable`  | A whole source file is missing, binary or over 64 KiB                    |
 
 `tokens` uses the usage the endpoint reports, or the estimate when it reports none.
+
+## Reconcile plans
+
+`write` also takes the version 2 plans `reconcile` prints; see [Reconciling a source](reconcile.md). Each page carries its own evidence:
+
+- `hunks`: the compare patches of the page's `base` to the plan's `to`, for its `source_paths`, with one compare call per distinct base. A missing patch drops the page with `patch_unavailable`, as for a `plan` run.
+- `files`: the whole content at `to` of each of its `source_paths`, inside the untrusted block as `Full content of <path>:`. A file that is missing, not a regular file, not valid UTF-8, contains a NUL byte or is over 64 KiB drops the page with `file_unavailable` before any model call. A file is never sent in part.
+
+Version 2 prompts carry no source PR context: each page has its own range, or none. Budget, validation, provenance (`source_sha` is the plan's `to`) and the working-tree rules are the same as for a `plan` run, so whole files count against `--max-tokens-per-page`.
 
 ## Working tree
 
