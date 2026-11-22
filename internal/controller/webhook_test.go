@@ -161,3 +161,32 @@ func TestWebhookBodyCap(t *testing.T) {
 		t.Fatalf("GET status = %d", rr.Code)
 	}
 }
+
+// With a shared secret, the knowledge repo of kb-a is still a source of kb-b:
+// the filters drop it for kb-a only.
+func TestWebhookFiltersPerKnowledgeBase(t *testing.T) {
+	now := time.Now()
+	c := newClient(t,
+		knowledgeBase("kb-a", "acme/kb-a"), knowledgeBase("kb-b", "acme/kb-b"),
+		secret("kb-a-webhook", map[string]string{v1alpha1.SecretKeyWebhook: secretA}),
+		secret("kb-b-webhook", map[string]string{v1alpha1.SecretKeyWebhook: secretA}),
+		newSource("docs-a", "acme/kb-a", "kb-a", now), newSource("docs-b", "acme/kb-a", "kb-b", now),
+	)
+	q := &queueRecorder{}
+	w := &Webhook{Client: c, Secrets: c, Enqueue: q.add, Tracker: NewTracker(), Logger: testLogger(&syncBuffer{})}
+	push := `{"ref":"refs/heads/main","repository":{"full_name":"acme/kb-a","default_branch":"main"},"sender":{"login":"dev"}}`
+	if code := deliver(t, w, "push", push, Sign([]byte(secretA), []byte(push))); code != http.StatusAccepted {
+		t.Fatalf("status = %d", code)
+	}
+	if got := q.items(); !slices.Equal(got, []string{"team/docs-b"}) {
+		t.Fatalf("enqueued %v, want only team/docs-b", got)
+	}
+
+	w.Tracker.SetBots("team/kb-a", []string{"okf-writer[bot]"})
+	w.Tracker.SetBots("team/kb-b", []string{"okf-writer[bot]"})
+	q.got = nil
+	bot := strings.Replace(push, `"dev"`, `"okf-writer[bot]"`, 1)
+	if code := deliver(t, w, "push", bot, Sign([]byte(secretA), []byte(bot))); code != http.StatusAccepted || len(q.items()) != 0 {
+		t.Fatalf("status %d, enqueued %v: a bot of every matching knowledge base must drop", code, q.items())
+	}
+}
