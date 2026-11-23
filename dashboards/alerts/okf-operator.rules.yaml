@@ -1,0 +1,42 @@
+# Prometheus rule groups for okf-operator. The file is the `groups:` list that
+# Prometheus, Thanos Ruler, Mimir, VictoriaMetrics vmalert and the Prometheus
+# Operator's PrometheusRule `spec` all load, see dashboards/README.md.
+#
+# To tune an alert, edit the values marked `tune` in its rule: the threshold
+# and the look-back window in `expr`, and `for`.
+groups:
+  - name: okf-operator
+    rules:
+      - alert: OkfOperatorRunFailures
+        # tune: more than 2 failed runs (any stage, any Source) in 3 hours.
+        # The default requeue interval is one hour, so one Source that keeps
+        # failing crosses the threshold on its third failure.
+        expr: sum(increase(okf_controller_run_failures_total[3h])) > 2
+        # tune
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: okf-operator runs are failing
+          description: >-
+            {{ printf "%.0f" $value }} okf-operator runs failed in the last
+            3 hours. Check the Source status and the controller logs; the
+            "Run failures by stage" panel shows the failing stage.
+
+      - alert: OkfOperatorCursorStale
+        # tune: a Source's cursor has been behind the source HEAD for more
+        # than 4 hours. Staleness saw-tooths up to the requeue interval (one
+        # hour by default) while a Source is current, so keep the threshold
+        # well above that interval.
+        expr: max by (okf_source_repo) (okf_controller_cursor_staleness_seconds) > 14400
+        # tune
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: okf-operator cursor for {{ $labels.okf_source_repo }} has not advanced
+          description: >-
+            The cursor of {{ $labels.okf_source_repo }} last reached the
+            source HEAD {{ $value | humanizeDuration }} ago: the source has
+            merges that no run has proposed. Check whether runs for the Source
+            fail or the knowledge repo is busy.
