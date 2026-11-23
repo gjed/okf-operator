@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -258,5 +259,64 @@ func TestLeaderCheck(t *testing.T) {
 	close(elected)
 	if err := check(nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// staleness collects the cursor staleness gauge, keyed by source repo.
+func staleness(t *testing.T) map[string]float64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := metrics.Collect(context.Background(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]float64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			g, ok := m.Data.(metricdata.Gauge[float64])
+			if m.Name != metricStaleness || !ok {
+				continue
+			}
+			for _, dp := range g.DataPoints {
+				repo, _ := dp.Attributes.Value(attrSource)
+				got[repo.AsString()] = dp.Value
+			}
+		}
+	}
+	return got
+}
+
+func TestDeletedSourceLeavesStalenessGauge(t *testing.T) {
+	now := time.Now()
+	gone, kept := newSource("gone", "acme/gone-repo", "kb", now), newSource("kept", "acme/kept-repo", "kb", now)
+	r, _, _ := newReconciler(newClient(t, knowledgeBase("kb", "acme/kb"), gone, kept), &fakePipeline{}, now)
+	for _, name := range []string{"gone", "kept"} {
+		if _, err := r.Reconcile(context.Background(), request(name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.Tracker.Merged(ns+"/gone", now)
+	before := staleness(t)
+	if _, ok := before["acme/gone-repo"]; !ok {
+		t.Fatalf("staleness before delete = %v, want a series for acme/gone-repo", before)
+	}
+	if _, ok := before["acme/kept-repo"]; !ok {
+		t.Fatalf("staleness before delete = %v, want a series for acme/kept-repo", before)
+	}
+
+	if err := r.Client.Delete(context.Background(), gone); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := r.Reconcile(context.Background(), request("gone")); err != nil || res.RequeueAfter != 0 {
+		t.Fatalf("Reconcile of a deleted Source = %+v, %v", res, err)
+	}
+	after := staleness(t)
+	if _, ok := after["acme/gone-repo"]; ok {
+		t.Fatalf("staleness after delete = %v, still reports the deleted Source", after)
+	}
+	if _, ok := after["acme/kept-repo"]; !ok {
+		t.Fatalf("staleness after delete = %v, lost the other Source", after)
+	}
+	if _, ok := r.Tracker.proposed(ns + "/gone"); ok {
+		t.Fatal("pending merge of the deleted Source was kept")
 	}
 }

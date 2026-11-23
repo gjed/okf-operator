@@ -118,7 +118,11 @@ func next(s *v1alpha1.Source, now time.Time) time.Duration {
 func (r *SourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	src := &v1alpha1.Source{}
 	if err := r.Client.Get(ctx, req.NamespacedName, src); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if apierrors.IsNotFound(err) {
+			r.Tracker.forget(req.String())
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
 	}
 	now := r.Now()
 	kb := &v1alpha1.KnowledgeBase{}
