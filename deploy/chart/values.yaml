@@ -1,0 +1,118 @@
+# Values of the okf-operator chart.
+#
+# Not configurable on purpose, because changing them breaks the controller:
+# one replica with the Recreate strategy (leader election: only the leader
+# serves the webhook and reports Ready, so a new Pod under RollingUpdate waits
+# for the old Pod's Lease and never becomes Ready), the hardened Pod and
+# container security contexts, the probes and the ports.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/gjed/okf-operator
+  # Defaults to the chart's appVersion, the release the chart was published with.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  # Defaults to the release's full name.
+  name: ""
+  annotations: {}
+
+# Secrets the controller may read, by name. Every KnowledgeBase's
+# appSecretRef, model apiKeySecretRef and webhookSecretRef must be listed in
+# the namespace of that KnowledgeBase. The chart renders one Role and
+# RoleBinding per entry with `get` on those names only, and never creates a
+# Secret: create them yourself. The namespaces must exist.
+#
+#   secrets:
+#     - namespace: team-a        # defaults to the release namespace
+#       names:
+#         - knowledge-writer-app
+#         - knowledge-webhook
+secrets: []
+
+# OTLP receiver for traces and metrics, for example
+# http://otel-collector.observability:4318. Empty exports nothing.
+otlpEndpoint: ""
+
+# Extra environment variables, for example GITHUB_API_URL for GitHub
+# Enterprise Server. Never put a credential value here: reference a Secret.
+env: []
+
+# Arguments appended after `controller`, for example ["--namespace", "team-a"]
+# or ["--concurrency", "2"].
+extraArgs: []
+
+# Size limit of the /tmp volume that holds the per-run knowledge checkouts.
+tmpSizeLimit: 1Gi
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# The webhook Service. GitHub deliveries reach `POST /webhook`.
+service:
+  port: 80
+
+# Exposes /webhook of the webhook Service. Point the GitHub App webhook, or a
+# repository webhook, at https://<host>/webhook.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # Required when enabled.
+  host: ""
+  # Name of an existing TLS Secret for the host. Empty serves no TLS block.
+  tlsSecretName: ""
+
+# Limits the controller's traffic. It needs a CNI that enforces
+# NetworkPolicy, and is off by default.
+#
+# A NetworkPolicy cannot match host names, so the GitHub API and the model
+# endpoint can only be limited by address. GitHub publishes the API ranges at
+# https://api.github.com/meta and they change; the default allows TCP 443 to
+# any address, so narrow `egress.https.cidrs` to GitHub's ranges and your
+# model provider's. A model endpoint inside the cluster, or an OTLP collector,
+# usually listens on another port: add a rule under `egress.extraRules`.
+networkPolicy:
+  enabled: false
+  ingress:
+    # Peers allowed to reach the webhook port (8080), for example your ingress
+    # controller's namespace. Empty allows any source.
+    from: []
+  egress:
+    # Peers of the DNS server, on port 53. Empty allows any destination.
+    dns:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    # The Kubernetes API server. Set the CIDRs to its address (the
+    # `kubernetes` Service endpoint) when you narrow them.
+    kubeApi:
+      cidrs:
+        - 0.0.0.0/0
+      ports:
+        - 443
+        - 6443
+    # GitHub API and model endpoint, on TCP 443.
+    https:
+      cidrs:
+        - 0.0.0.0/0
+    # Raw NetworkPolicy egress rules appended as they are.
+    extraRules: []

@@ -1,0 +1,102 @@
+# Cluster-wide the controller only reads its own CRDs, writes Source status and
+# records events. Secrets are readable by name only, see `secrets` in values.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "okf-operator.fullname" . }}
+  labels:
+    {{- include "okf-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["okf.dev"]
+    resources: ["knowledgebases", "sources"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["okf.dev"]
+    resources: ["sources/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["", "events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "okf-operator.fullname" . }}
+  labels:
+    {{- include "okf-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "okf-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "okf-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+# Leader election Lease, in the release namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "okf-operator.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "okf-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "okf-operator.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "okf-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "okf-operator.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "okf-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- range $i, $entry := .Values.secrets }}
+{{- $ns := default $.Release.Namespace $entry.namespace }}
+{{- /* A rule with no resourceNames would grant every Secret in the namespace. */}}
+{{- if not $entry.names }}
+{{- fail (printf "secrets[%d].names must list at least one Secret name" $i) }}
+{{- end }}
+---
+# The Secrets of the KnowledgeBases in {{ $ns }}, by name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "okf-operator.fullname" $ }}-secrets
+  namespace: {{ $ns }}
+  labels:
+    {{- include "okf-operator.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      {{- range $entry.names }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "okf-operator.fullname" $ }}-secrets
+  namespace: {{ $ns }}
+  labels:
+    {{- include "okf-operator.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "okf-operator.fullname" $ }}-secrets
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "okf-operator.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}

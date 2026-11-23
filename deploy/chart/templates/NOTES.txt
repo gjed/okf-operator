@@ -1,0 +1,15 @@
+okf-operator {{ .Chart.AppVersion }} is installed in {{ .Release.Namespace }}.
+
+Create the Secrets your KnowledgeBases reference in their namespaces and list
+them under `secrets` in the values: the controller can read only the Secrets
+named there. Then apply a KnowledgeBase and a Source, see
+https://github.com/gjed/okf-operator/blob/main/docs/controller.md
+
+{{- if .Values.ingress.enabled }}
+
+Point the GitHub webhook at https://{{ .Values.ingress.host }}/webhook
+{{- else }}
+
+The webhook listens on Service {{ include "okf-operator.fullname" . }}-webhook, path /webhook.
+Expose it with `ingress.enabled` or your own ingress.
+{{- end }}
