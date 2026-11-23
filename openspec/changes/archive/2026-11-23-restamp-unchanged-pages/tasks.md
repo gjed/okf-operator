@@ -2,7 +2,7 @@
 
 ## 1. Write re-stamps unchanged reconcile pages
 
-- [x] 1.1 Add the `restamped` result, report version 3 and the re-stamp of unchanged pages of version 2 plans in `internal/write`, with the `okf.write.result=restamped` counter value and the `okf.write.pages.restamped` span attribute; verify with `go test ./internal/write` covering `NO_CHANGE` and a same-content reply for stale, widened and backfill pages, body, key order and comments kept byte for byte, an identical re-stamp reported `unchanged`, a version 1 plan leaving an unchanged page untouched, an update staying `changed`, all-or-nothing on a model failure, and the counter and span attribute
+- [x] 1.1 Add the `restamped` result, report version 3 and the re-stamp of unchanged pages of version 2 plans in `internal/write`, with the `okf.write.result=restamped` counter value and the `okf.write.pages.restamped` span attribute; verify with `go test ./internal/write` covering `NO_CHANGE` and a same-content reply for stale, widened and backfill pages, body byte for byte, other keys, key order and comments kept, an identical re-stamp reported `unchanged`, a version 1 plan leaving an unchanged page untouched, an update staying `changed`, all-or-nothing on a model failure, and the counter and span attribute
 
 ## 2. Propose commits re-stamped pages
 

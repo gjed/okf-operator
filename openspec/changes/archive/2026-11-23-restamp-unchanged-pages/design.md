@@ -36,7 +36,7 @@ A re-stamped page is `modified`, its diff is a few lines, and its `source_sha` i
 
 - \[A model that wrongly answers `NO_CHANGE` now stamps the page current, so it is not retried by the next reconcile\] → the same page was already kept as is by the old behaviour; the difference is that its provenance says it was checked at `to`, which is true. The re-stamp is reviewable in the PR.
 - [A frontmatter-only commit adds PR noise] → listed apart in the PR body; one small diff per page.
-- [Stamp re-encodes the frontmatter] → the same encoder writes every changed page today; comments, key order and values are kept, and a test pins the bytes.
+- [Stamp re-encodes the frontmatter] → the same encoder writes every changed page today; comments, key order and values are kept and the body is byte for byte, but the frontmatter formatting (list indentation, spacing before a comment, blank lines) is normalized, as for every changed page; a test pins the output.
 - [Mixed-version binaries] → `propose` fails with a version error that names the fix.
 
 ## Migration Plan
