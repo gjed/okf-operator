@@ -1,3 +1,5 @@
+# Design
+
 ## Context
 
 autoexport builds the exporter from `OTEL_TRACES_EXPORTER` and `OTEL_METRICS_EXPORTER` and falls back to OTLP when they are unset, which would dial `localhost:4318` in every run. Bootstrap avoided that by forcing `none` whenever no OTLP endpoint was set, at the cost of overwriting an explicit value.
