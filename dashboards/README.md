@@ -81,7 +81,7 @@ Attributes the queries use:
 | `okf_controller_trigger`                      | `okf_controller_runs_queued_total`                                                                      |
 | `okf_controller_stage`, `okf_controller_mode` | `okf_controller_run_failures_total`                                                                     |
 
-Scrape the operator directly only for debugging: `OTEL_METRICS_EXPORTER=prometheus` serves `/metrics` on port 9464, with no OTLP endpoint needed.
+Scrape the operator directly only for debugging: `OTEL_METRICS_EXPORTER=prometheus` serves `/metrics` on port 9464, with no OTLP endpoint needed. The listener binds to `localhost` by default, so a scrape from outside the pod also needs `OTEL_EXPORTER_PROMETHEUS_HOST=0.0.0.0`.
 
 ## Import the dashboard
 
