@@ -151,3 +151,17 @@ A completed review SHALL exit 0 whether `pass` is true or false. A model endpoin
 
 - **WHEN** `review` completes with one passing and one failing page
 - **THEN** `okf.review.pages` gains one `pass` and one `fail` count
+
+### Requirement: Provenance-only pages pass without a model call
+
+When the pages before and after are equal once their provenance is aligned (see "Provenance is not reviewed") and the page is not new, `review` SHALL pass the page without a model call or a source patch, with an empty `reason`, and log it at info level with the reason `provenance_only`. Any other change, a custom frontmatter key included, SHALL be reviewed as before. The result schema and its `version` SHALL NOT change.
+
+#### Scenario: Only provenance changed
+
+- **WHEN** the head changes only the page's `source_sha` and `updated_at`
+- **THEN** the page has `pass: true` and an empty `reason`, the model receives no request for it, and no source compare is read for it
+
+#### Scenario: Custom frontmatter key changed
+
+- **WHEN** the head changes the provenance and a custom frontmatter key
+- **THEN** the page is reviewed by the model
