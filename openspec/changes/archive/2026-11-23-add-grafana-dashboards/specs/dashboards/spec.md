@@ -41,7 +41,7 @@ The dashboard SHALL select its datasource through a `DS_PROMETHEUS` datasource t
 
 #### Scenario: Run failures
 
-- **WHEN** more than two runs fail within three hours
+- **WHEN** two or more failures are counted within three hours (the first failure of a stage and mode pair is not counted)
 - **THEN** `OkfOperatorRunFailures` fires
 
 #### Scenario: Stale cursor
