@@ -44,13 +44,13 @@ func NewLogger(w io.Writer, format, level string) (*slog.Logger, error) {
 // Setup installs the global tracer and meter providers and returns a function
 // that flushes and shuts them down.
 //
-// SIMPLIFIED: autoexport falls back to OTLP when no exporter is named, so
-// OTEL_TRACES_EXPORTER and OTEL_METRICS_EXPORTER are forced to "none" unless an
-// OTLP endpoint is set. An exporter named only through OTEL_*_EXPORTER=console
-// is therefore ignored. Upgrade path: honour the explicit value when it is set.
+// autoexport falls back to OTLP when no exporter is named, so a signal with no
+// OTEL_<SIGNAL>_EXPORTER and no OTLP endpoint is forced to "none": nothing is
+// exported and no collector is contacted. An exporter named explicitly is left
+// as is, including "otlp" with no endpoint, which uses the SDK default endpoint.
 func Setup(ctx context.Context) (func(context.Context) error, error) {
 	for _, signal := range []string{"TRACES", "METRICS"} {
-		if !hasEndpoint(signal) {
+		if os.Getenv("OTEL_"+signal+"_EXPORTER") == "" && !hasEndpoint(signal) {
 			if err := os.Setenv("OTEL_"+signal+"_EXPORTER", "none"); err != nil {
 				return nil, err
 			}
