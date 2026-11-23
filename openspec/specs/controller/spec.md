@@ -146,7 +146,7 @@ The controller SHALL emit `okf.controller.events.received`, `okf.controller.even
 
 ### Requirement: Deployment manifests
 
-`deploy/` SHALL hold the CRDs, RBAC limited to the CRDs, the named Secrets, Events and leases, and a sample Deployment. `make generate` SHALL regenerate the CRDs and deepcopy code with a pinned `controller-gen`, and CI SHALL fail when it leaves a diff.
+`deploy/` SHALL hold the CRDs, the Helm chart (see the `helm-chart` capability) and the sample resources. `make generate` SHALL regenerate the CRDs and deepcopy code with a pinned `controller-gen`, write the CRDs to both `deploy/crds` and `deploy/chart/crds`, and CI SHALL fail when it leaves a diff.
 
 #### Scenario: Generated files up to date
 
