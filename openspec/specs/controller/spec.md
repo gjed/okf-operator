@@ -144,6 +144,15 @@ The controller SHALL emit `okf.controller.events.received`, `okf.controller.even
 - **WHEN** a run fails in `propose`
 - **THEN** `okf.controller.run.failures` is incremented with stage `propose` and the `controller run` span has error status
 
+### Requirement: Deleted Source telemetry
+
+When a reconcile finds that its `Source` no longer exists, the controller SHALL drop that `Source`'s pending merge time and cursor staleness entry, so `okf.controller.cursor.staleness` stops reporting it, and SHALL leave the entries of other `Source`s unchanged. A read error other than not found SHALL leave the entries unchanged.
+
+#### Scenario: Deleted Source stops reporting staleness
+
+- **WHEN** two `Source`s have reported `okf.controller.cursor.staleness`, one is deleted and the controller reconciles it
+- **THEN** the next collection of the gauge has no series for the deleted `Source`'s repo and still has the series of the other `Source`
+
 ### Requirement: Deployment manifests
 
 `deploy/` SHALL hold the CRDs, the Helm chart (see the `helm-chart` capability) and the sample resources. `make generate` SHALL regenerate the CRDs and deepcopy code with a pinned `controller-gen`, write the CRDs to both `deploy/crds` and `deploy/chart/crds`, and CI SHALL fail when it leaves a diff.

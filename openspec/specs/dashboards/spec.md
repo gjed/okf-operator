@@ -53,6 +53,15 @@ The dashboard SHALL select its datasource through a `DS_PROMETHEUS` datasource t
 - **WHEN** a `Source`'s cursor staleness stays above four hours for 15 minutes
 - **THEN** `OkfOperatorCursorStale` fires for that source repo
 
+### Requirement: Deleted Source does not keep the stale-cursor alert firing
+
+A deleted `Source` SHALL NOT keep `OkfOperatorCursorStale` firing: the controller stops reporting its staleness, and the README SHALL NOT tell users to restart the controller or silence the alert after deleting a `Source`.
+
+#### Scenario: Deleted Source
+
+- **WHEN** a `Source` whose cursor staleness fired `OkfOperatorCursorStale` is deleted
+- **THEN** the controller stops reporting its staleness and the alert resolves without a controller restart
+
 ### Requirement: Documented translation
 
 `dashboards/README.md` SHALL document how to import the dashboard and load the rules, the OpenTelemetry to Prometheus name translation the queries rely on (dots to underscores, unit suffix, `_total`, resource attributes), and the collector settings they assume. The README SHALL link to it.
