@@ -136,3 +136,90 @@ func TestRunReconcileNothingChanged(t *testing.T) {
 		t.Fatalf("result = %+v, cursor = %q", res, f.cursor())
 	}
 }
+
+const pageBRestamped = "---\ntype: concept\nsource_sha: " + testTo + "\n---\n# B\n"
+
+// A re-stamped page is committed like a changed one and listed apart, as
+// provenance refreshed with its content unchanged.
+func TestRunReconcileCommitsRestampedPage(t *testing.T) {
+	f := newFixture(t)
+	f.asReconcile(plan.CursorAncestor)
+	f.rep.Pages[1].Result = write.ResultRestamped
+	writeFile(t, f.dir, "docs/b.md", pageBRestamped)
+	res, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Action != ActionOpened || !res.CursorAdvanced || f.cursor() != testTo+"\n" {
+		t.Fatalf("result = %+v, cursor = %q", res, f.cursor())
+	}
+	head := f.fake.Ref(testKB, "okf/acme/api")
+	files := f.fake.Files(testKB, head)
+	if files["docs/a.md"] != pageANew || files["docs/b.md"] != pageBRestamped || files["docs/c.md"] != pageC {
+		t.Errorf("committed files = %v", files)
+	}
+	body := f.fake.PullRequests(testKB)[0].Body
+	for _, want := range []string{
+		"Pages:\n\n- changed: `docs/a.md` (stale)\n- dropped: `docs/c.md` (stale, validation_failed)\n",
+		"\nProvenance refreshed, content unchanged:\n\n- `docs/b.md` (stale)\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "- restamped:") {
+		t.Errorf("body lists the re-stamped page among the pages:\n%s", body)
+	}
+}
+
+// A run whose only change is a re-stamped page still opens a PR, and moves
+// the cursor after it.
+func TestRunReconcileOnlyRestampedPage(t *testing.T) {
+	f := newFixture(t)
+	f.checkout(t, with(map[string]string{"docs/b.md": pageBRestamped}))
+	f.asReconcile(plan.CursorAncestor)
+	f.rep.Pages = []write.PageResult{
+		{Path: "docs/a.md", Result: write.ResultUnchanged, Attempts: 1},
+		{Path: "docs/b.md", Result: write.ResultRestamped, Attempts: 1},
+		{Path: "docs/c.md", Result: write.ResultUnchanged, Attempts: 1},
+	}
+	res, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Action != ActionOpened || res.Commit == "" || !res.CursorAdvanced || f.cursor() != testTo+"\n" {
+		t.Fatalf("result = %+v, cursor = %q", res, f.cursor())
+	}
+	body := f.fake.PullRequests(testKB)[0].Body
+	if !strings.Contains(body, "- unchanged: `docs/a.md` (stale)\n- unchanged: `docs/c.md` (stale)\n") ||
+		!strings.Contains(body, "Provenance refreshed, content unchanged:\n\n- `docs/b.md` (stale)\n") {
+		t.Errorf("body:\n%s", body)
+	}
+}
+
+// A page reported re-stamped must differ from the base, like a changed one.
+func TestRunReconcileRestampedPageIdenticalToBase(t *testing.T) {
+	f := newFixture(t)
+	f.asReconcile(plan.CursorAncestor)
+	f.rep.Pages[1].Result = write.ResultRestamped
+	_, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+	if err == nil || !strings.Contains(err.Error(), "docs/b.md: reported changed but identical to the base commit") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.fake.Writes()) != 0 {
+		t.Errorf("writes = %v", f.fake.Writes())
+	}
+}
+
+// A re-stamped result on a version 1 plan fails before any GitHub write.
+func TestRunRestampedOnVersion1Plan(t *testing.T) {
+	f := newFixture(t)
+	f.rep.Pages[1].Result = write.ResultRestamped
+	_, err := Run(t.Context(), f.plan, f.rep, f.deps(t))
+	if err == nil || !strings.Contains(err.Error(), "restamped but the plan is not a reconcile plan") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.fake.Writes()) != 0 {
+		t.Errorf("writes = %v", f.fake.Writes())
+	}
+}

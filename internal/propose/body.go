@@ -68,14 +68,31 @@ func reconcileSection(p *plan.Plan, rep *write.Report) string {
 	default:
 		fmt.Fprintf(&b, "Cursor: moved from `%s` to `%s`.\n", short(p.From), short(p.To))
 	}
-	b.WriteString("\nPages:\n\n")
+	var pages, restamped []write.PageResult
 	for _, pg := range rep.Pages {
+		if pg.Result == write.ResultRestamped {
+			restamped = append(restamped, pg)
+		} else {
+			pages = append(pages, pg)
+		}
+	}
+	if len(pages) > 0 || len(restamped) == 0 {
+		b.WriteString("\nPages:\n\n")
+	}
+	for _, pg := range pages {
 		rp, _ := p.ReconcilePage(pg.Path)
 		fmt.Fprintf(&b, "- %s: `%s` (%s", pg.Result, pg.Path, rp.Reason)
 		if pg.Reason != "" {
 			fmt.Fprintf(&b, ", %s", pg.Reason)
 		}
 		b.WriteString(")\n")
+	}
+	if len(restamped) > 0 {
+		b.WriteString("\nProvenance refreshed, content unchanged:\n\n")
+		for _, pg := range restamped {
+			rp, _ := p.ReconcilePage(pg.Path)
+			fmt.Fprintf(&b, "- `%s` (%s)\n", pg.Path, rp.Reason)
+		}
 	}
 	if len(p.Reconcile.DeletionCandidates) > 0 {
 		fmt.Fprintf(&b, "\nDeletion candidates: no routed source path of these pages exists at `%s`. They were not deleted; remove or reroute them by hand.\n\n", short(p.To))
