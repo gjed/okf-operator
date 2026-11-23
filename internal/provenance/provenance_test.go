@@ -264,6 +264,25 @@ func TestStampKeepsBodyByteIdentical(t *testing.T) {
 	}
 }
 
+// TestStampDoesNotWrapLongValues pins the v3 output format: a long value
+// stays on one line, so re-stamping an existing page never re-wraps it.
+func TestStampDoesNotWrapLongValues(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("word ", 30) + "end"
+	for _, fm := range []string{
+		"title: " + long + "\n",
+		"description: >-\n  " + long + "\n",
+	} {
+		out, err := Stamp([]byte("---\n"+fm+"---\n"), sampleFields)
+		if err != nil {
+			t.Fatalf("Stamp: %v", err)
+		}
+		if !bytes.Contains(out, []byte(fm)) {
+			t.Errorf("frontmatter %q re-wrapped:\n%s", fm, out)
+		}
+	}
+}
+
 func TestType(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
