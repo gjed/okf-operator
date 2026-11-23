@@ -306,11 +306,12 @@ okf-operator gate --knowledge-repo acme/kb --pr 12 --plan plan.json --review rev
 `controller` runs the pipeline as a Kubernetes operator for `KnowledgeBase` and `Source` resources (`okf.dev/v1alpha1`). A GitHub webhook only queues the matching `Source`; every run checks out the knowledge repo from the GitHub tarball API, runs `plan` (or `reconcile`, weekly by default), `write` and `propose` in-process, then `gate`, `review` and `approve` for the PR it pushed. A periodic requeue covers lost webhooks, and runs of one knowledge repo never overlap.
 
 ```bash
-kubectl apply -f deploy/crds -f deploy/controller
+helm install okf-operator oci://ghcr.io/gjed/charts/okf-operator \
+  --version 1.2.3 --namespace okf-operator --create-namespace
 kubectl apply -f deploy/samples/knowledgebase.yaml   # after replacing the placeholders
 ```
 
-See [Controller](docs/controller.md) for the resources, Secrets, webhook events, run order and metrics.
+The Helm chart is published with each release, under the same version as the image. See [Controller](docs/controller.md) for the install values, the resources, Secrets, webhook events, run order and metrics.
 
 ### Telemetry
 
