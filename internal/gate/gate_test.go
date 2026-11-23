@@ -206,3 +206,38 @@ func TestTelemetry(t *testing.T) {
 		}
 	}
 }
+
+// A frontmatter-only change, as a re-stamp makes it, is a modified page like
+// any other: every deterministic rule passes when its source_sha is the plan's to.
+func TestEvaluateProvenanceOnlyPagePasses(t *testing.T) {
+	f := newFixture(t)
+	older := strings.Replace(apiPage, "source_sha: "+sourceSHA, "source_sha: "+strings.Repeat("4", 40), 1)
+	older = strings.Replace(older, "updated_at: 2026-11-18T10:00:00Z", "updated_at: 2026-11-01T10:00:00Z", 1)
+	f.fake.SetFile(kbRepo, baseSHA, "product/api.md", older)
+	f.files = []githubtest.PullFile{modified("product/api.md", 2, 2)}
+	r, err := f.evaluate(context.Background(), t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Pass {
+		var out bytes.Buffer
+		_ = Encode(&out, r)
+		t.Fatalf("a provenance-only page failed:\n%s", out.String())
+	}
+}
+
+// The same page stamped at a commit other than the plan's to fails the provenance rule.
+func TestEvaluateProvenanceOnlyPageAtOtherCommitFails(t *testing.T) {
+	f := newFixture(t)
+	other := strings.Repeat("4", 40)
+	f.fake.SetCommit(srcRepo, other)
+	f.fake.SetFile(kbRepo, headSHA, "product/api.md", strings.Replace(apiPage, "source_sha: "+sourceSHA, "source_sha: "+other, 1))
+	f.files = []githubtest.PullFile{modified("product/api.md", 2, 2)}
+	r, err := f.evaluate(context.Background(), t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Pass {
+		t.Fatal("a page stamped at a commit other than the plan's to passed")
+	}
+}
