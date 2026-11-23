@@ -1,0 +1,36 @@
+# Unit tests for okf-operator.rules.yaml: promtool test rules okf-operator.rules.test.yaml
+rule_files:
+  - okf-operator.rules.yaml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # one failure per hour for 4 hours: 3rd failure crosses the threshold
+      - series: 'okf_controller_run_failures_total{okf_controller_stage="write",okf_controller_mode="plan"}'
+        values: '0+0x59 1+0x60 2+0x60 3+0x60 4+0x60'
+      # staleness grows from 0 to 6h, one point per minute
+      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/api"}'
+        values: '0+60x360'
+      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/web"}'
+        values: '1800+0x360'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: OkfOperatorRunFailures
+        exp_alerts: []
+      - eval_time: 3h30m
+        alertname: OkfOperatorRunFailures
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: okf-operator runs are failing
+              description: "3 okf-operator runs failed in the last 3 hours. Check the Source status and the controller logs; the \"Run failures by stage\" panel shows the failing stage."
+      - eval_time: 3h
+        alertname: OkfOperatorCursorStale
+        exp_alerts: []
+      - eval_time: 4h30m
+        alertname: OkfOperatorCursorStale
+        exp_alerts:
+          - exp_labels: {severity: warning, okf_source_repo: acme/api}
+            exp_annotations:
+              summary: okf-operator cursor for acme/api has not advanced
+              description: "The cursor of acme/api last reached the source HEAD 4h 30m 0s ago: the source has merges that no run has proposed. Check whether runs for the Source fail or the knowledge repo is busy."
