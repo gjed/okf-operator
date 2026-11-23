@@ -8,15 +8,17 @@ on:
     types:
       - published
 
-permissions:
-  contents: read
-  packages: write
+# No token scopes by default; each job declares the minimum it uses.
+permissions: {}
 
 jobs:
   image:
     name: Build and push image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,3 +56,43 @@ jobs:
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             COMMIT=${{ github.sha }}
+
+  publish-chart:
+    name: Package and push chart
+    runs-on: ubuntu-latest
+    needs: image
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2
+
+      - name: Package chart
+        # The chart and the image share the release version: the tag without
+        # its leading v, which is also the image tag. Chart.yaml in the
+        # repository keeps placeholders.
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          helm package deploy/chart \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination "$RUNNER_TEMP"
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GITHUB_TOKEN"
+
+      - name: Push chart
+        run: helm push "$RUNNER_TEMP"/okf-operator-*.tgz oci://ghcr.io/gjed/charts
