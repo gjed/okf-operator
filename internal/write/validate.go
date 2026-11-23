@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // BaseValidator checks the OKF v0.2 base conformance rules that apply to one

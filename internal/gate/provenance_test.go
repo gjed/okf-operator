@@ -17,7 +17,7 @@ func TestProvenanceRule(t *testing.T) {
 		{"all fields, known commit", apiPage, nil},
 		{"with routed_paths", strings.Replace(apiPage, "source_paths: [api/x.go]\n", "source_paths: [api/x.go]\nrouted_paths: [api/x.go, api/y.go]\n", 1), nil},
 		{"routed_paths of the wrong type", strings.Replace(apiPage, "source_paths: [api/x.go]\n", "source_paths: [api/x.go]\nrouted_paths: api/x.go\n", 1),
-			[]string{"product/api.md: provenance: routed_paths: yaml: unmarshal errors:\n  line 6: cannot unmarshal !!str `api/x.go` into []string"}},
+			[]string{"product/api.md: provenance: routed_paths: yaml: construct errors: line 6: cannot construct !!str `api/x.go` into []string"}},
 		{"missing field", strings.Replace(apiPage, "generated_by: okf-operator/dev/m1\n", "", 1),
 			[]string{"product/api.md: missing generated_by"}},
 		{"several missing", strings.Replace(strings.Replace(apiPage, "source_paths: [api/x.go]\n", "", 1), "updated_at: 2026-11-18T10:00:00Z\n", "", 1),

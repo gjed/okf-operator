@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Provenance frontmatter keys.
@@ -169,12 +169,15 @@ func WithoutRoutedPaths(page []byte) ([]byte, error) {
 	return join(doc, body)
 }
 
-// join encodes doc as frontmatter followed by body.
+// join encodes doc as frontmatter followed by body. The line width is
+// unlimited, as in yaml v3, so re-stamping never re-wraps existing values.
 func join(doc *yaml.Node, body []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	if err := enc.Encode(doc); err != nil {
+	enc, err := yaml.NewDumper(&buf, yaml.WithV3Defaults(), yaml.WithIndent(2), yaml.WithLineWidth(-1))
+	if err != nil {
+		return nil, fmt.Errorf("provenance: encode frontmatter: %w", err)
+	}
+	if err := enc.Dump(doc); err != nil {
 		return nil, fmt.Errorf("provenance: encode frontmatter: %w", err)
 	}
 	if err := enc.Close(); err != nil {
