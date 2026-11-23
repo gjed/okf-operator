@@ -797,7 +797,7 @@
       "id": 16,
       "type": "stat",
       "title": "Share of PRs auto-merged",
-      "description": "Knowledge PRs approved by the review App (so eligible for auto-merge) divided by knowledge PRs opened, over the dashboard time range. Approval is the closest signal the operator emits: it does not see the merge itself. Reconcile PRs are never approved and still count as opened. Neither counter has a source or bundle attribute, so the variables do not filter this panel.",
+      "description": "Knowledge PR approvals by the review App (so eligible for auto-merge) divided by PR-producing runs, those that opened or updated a knowledge PR, over the dashboard time range. Every run that pushes to a PR is gated, reviewed and approved again, so the denominator counts each push, not each PR. Approval is the closest signal the operator emits: it does not see the merge itself. Reconcile PRs are never approved and still count as runs. Neither side has a source or bundle filter here, so the variables do not apply to this panel.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -842,7 +842,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "(sum(increase(okf_controller_prs_approved_total[$__range])) or vector(0)) / scalar(sum(increase(okf_propose_prs_opened_total[$__range])) > 0)",
+          "expr": "(sum(increase(okf_controller_prs_approved_total[$__range])) or vector(0)) / scalar((sum(increase(okf_propose_prs_opened_total[$__range])) + sum(increase(okf_propose_prs_updated_total[$__range]))) > 0)",
           "legendFormat": "",
           "refId": "A",
           "editorMode": "code",
@@ -913,7 +913,7 @@
       "id": 18,
       "type": "timeseries",
       "title": "Share of PRs auto-merged over time",
-      "description": "Same ratio per window. A window with no opened PR is a gap.",
+      "description": "Same ratio per window. A window with no PR-producing run is a gap.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -954,8 +954,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "(sum(increase(okf_controller_prs_approved_total[$__rate_interval])) or vector(0)) / scalar(sum(increase(okf_propose_prs_opened_total[$__rate_interval])) > 0)",
-          "legendFormat": "approved / opened",
+          "expr": "(sum(increase(okf_controller_prs_approved_total[$__rate_interval])) or vector(0)) / scalar((sum(increase(okf_propose_prs_opened_total[$__rate_interval])) + sum(increase(okf_propose_prs_updated_total[$__rate_interval]))) > 0)",
+          "legendFormat": "approved / PR-producing runs",
           "refId": "A",
           "editorMode": "code",
           "range": true
