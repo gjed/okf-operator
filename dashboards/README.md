@@ -105,16 +105,16 @@ The `Source` and `Bundle` variables filter the panels whose metrics carry those 
 
 ## Panels
 
-| Panel                                                                | Query basis                                                                       | Limit                                                                                      |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Webhook events received, dropped; runs queued; run failures by stage | `okf_controller_*_total`                                                          | No source attribute, so the variables do not filter them                                   |
-| Pages by write result; pages changed per run                         | `okf_write_pages_total`, divided by PR-producing runs for the per-run view        | Per run means per run that opened or updated a PR, see below                               |
-| Validation failures                                                  | `okf_write_validation_failures_total`                                             | No rule attribute: split by source, not by rule                                            |
-| Gate failures by rule                                                | `okf_gate_rule_results_total{okf_gate_outcome="fail"}`                            | No source attribute                                                                        |
-| Source merge to knowledge PR                                         | `histogram_quantile` over `okf_controller_merge_to_pr_seconds_bucket`             | Merge times are in memory; default histogram bounds make the quantiles coarse              |
-| Share of PRs auto-merged                                             | `okf_controller_prs_approved_total` over `okf_propose_prs_opened_total`           | Approval, not the merge, which the operator does not see; reconcile PRs are never approved |
-| Tokens per run                                                       | `okf_write_tokens_total`, `okf_review_tokens_total`, divided by PR-producing runs | Tokens of failed runs are in the numerator only                                            |
-| Cursor staleness                                                     | `okf_controller_cursor_staleness_seconds`                                         | Appears after a run first reaches HEAD; restarts with the controller                       |
+| Panel                                                                | Query basis                                                                                                  | Limit                                                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Webhook events received, dropped; runs queued; run failures by stage | `okf_controller_*_total`                                                                                     | No source attribute, so the variables do not filter them                                                                      |
+| Pages by write result; pages changed per run                         | `okf_write_pages_total`, divided by PR-producing runs for the per-run view                                   | Per run means per run that opened or updated a PR, see below                                                                  |
+| Validation failures                                                  | `okf_write_validation_failures_total`                                                                        | No rule attribute: split by source, not by rule                                                                               |
+| Gate failures by rule                                                | `okf_gate_rule_results_total{okf_gate_outcome="fail"}`                                                       | No source attribute                                                                                                           |
+| Source merge to knowledge PR                                         | `histogram_quantile` over `okf_controller_merge_to_pr_seconds_bucket`                                        | Merge times are in memory; default histogram bounds make the quantiles coarse                                                 |
+| Share of PRs auto-merged                                             | `okf_controller_prs_approved_total` over `okf_propose_prs_opened_total` plus `okf_propose_prs_updated_total` | Approval, not the merge, which the operator does not see; counts each push to a PR as a run; reconcile PRs are never approved |
+| Tokens per run                                                       | `okf_write_tokens_total`, `okf_review_tokens_total`, divided by PR-producing runs                            | Tokens of failed runs are in the numerator only                                                                               |
+| Cursor staleness                                                     | `okf_controller_cursor_staleness_seconds`                                                                    | Appears after a run first reaches HEAD; restarts with the controller                                                          |
 
 No metric counts `write` or `review` runs, so "per run" divides by `okf_propose_prs_opened_total` plus `okf_propose_prs_updated_total`, which `propose` adds with 0 or 1 once per run. "Pages changed" counts `okf_write_result` values `changed` and `created`; the pages-by-result panel shows every value present.
 
@@ -142,14 +142,18 @@ spec:
 
 Thanos Ruler, Mimir (`mimirtool rules load`) and vmalert read the file as it is. Plain rule groups were chosen over Grafana-managed alert provisioning because the latter needs a datasource UID and a folder UID, and ties the alerts to Grafana.
 
-| Alert                    | Fires when                                                                      | Default                           |
-| ------------------------ | ------------------------------------------------------------------------------- | --------------------------------- |
-| `OkfOperatorRunFailures` | Failed runs in the look-back window exceed the threshold                        | more than 2 in 3 hours, `for: 5m` |
-| `OkfOperatorCursorStale` | A Source's cursor has been behind the source HEAD for longer than the threshold | 4 hours, `for: 15m`               |
+| Alert                    | Fires when                                                                      | Default                         |
+| ------------------------ | ------------------------------------------------------------------------------- | ------------------------------- |
+| `OkfOperatorRunFailures` | Failed runs in the look-back window exceed the threshold                        | 2 or more in 3 hours, `for: 5m` |
+| `OkfOperatorCursorStale` | A Source's cursor has been behind the source HEAD for longer than the threshold | 4 hours, `for: 15m`             |
 
 Both thresholds, both look-back windows and both `for` durations are literals in the rule, marked `tune`. Edit them in the file, or patch them in your deployment tooling. The default requeue interval of a `Source` is one hour and the staleness gauge saw-tooths up to it while the Source is current, so keep the staleness threshold well above your requeue interval.
 
+`OkfOperatorRunFailures` uses `increase`, which does not count the first failure of a stage and mode pair: the counter series is created by that failure, so Prometheus sees it start at 1. A pair that has never failed needs 3 failures in the window to reach the default threshold of 2, a pair that failed before needs 2.
+
 `OkfOperatorCursorStale` cannot tell merges no run proposed from runs that keep failing: both leave the cursor behind HEAD. Read the run failure panel and the `Source` status for the cause.
+
+The controller never forgets a deleted `Source`'s staleness entry, so a `Source` deleted while it was current keeps reporting a growing staleness: `OkfOperatorCursorStale` fires for its source repo four hours later and stays firing, and the staleness panel keeps drawing it, until the controller restarts. Restart the controller, or silence the alert for that `okf_source_repo`, after deleting a `Source`.
 
 Check the rules and their tests with `promtool`:
 
