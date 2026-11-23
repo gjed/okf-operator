@@ -45,21 +45,44 @@ func TestNewResourceNamesServiceUnlessOverridden(t *testing.T) {
 	}
 }
 
-func TestSetupForcesExportersOffWithoutEndpoint(t *testing.T) {
-	for _, key := range []string{
-		"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-		"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER",
-	} {
-		t.Setenv(key, "")
+func TestSetupExporterEnv(t *testing.T) {
+	const endpoint = "http://127.0.0.1:1"
+	// The Prometheus exporter exists for metrics only, so traces never name it.
+	tests := []struct {
+		name                    string
+		traces, metrics         string
+		endpoint                string
+		wantTraces, wantMetrics string
+	}{
+		{"unset, no endpoint", "", "", "", "none", "none"},
+		{"unset, with endpoint", "", "", endpoint, "", ""},
+		{"prometheus, no endpoint", "", "prometheus", "", "none", "prometheus"},
+		{"prometheus, with endpoint", "", "prometheus", endpoint, "", "prometheus"},
+		{"console, no endpoint", "console", "console", "", "console", "console"},
+		{"console, with endpoint", "console", "console", endpoint, "console", "console"},
+		{"otlp, no endpoint", "otlp", "otlp", "", "otlp", "otlp"},
+		{"otlp, with endpoint", "otlp", "otlp", endpoint, "otlp", "otlp"},
+		{"none, no endpoint", "none", "none", "", "none", "none"},
+		{"none, with endpoint", "none", "none", endpoint, "none", "none"},
 	}
-	shutdown, err := Setup(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = shutdown(context.Background()) }()
-	for _, key := range []string{"OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER"} {
-		if got := os.Getenv(key); got != "none" {
-			t.Fatalf("%s = %q, want none", key, got)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", tt.endpoint)
+			t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
+			t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "")
+			t.Setenv("OTEL_TRACES_EXPORTER", tt.traces)
+			t.Setenv("OTEL_METRICS_EXPORTER", tt.metrics)
+			shutdown, err := Setup(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = shutdown(context.Background()) }()
+			if got := os.Getenv("OTEL_TRACES_EXPORTER"); got != tt.wantTraces {
+				t.Fatalf("OTEL_TRACES_EXPORTER = %q, want %q", got, tt.wantTraces)
+			}
+			if got := os.Getenv("OTEL_METRICS_EXPORTER"); got != tt.wantMetrics {
+				t.Fatalf("OTEL_METRICS_EXPORTER = %q, want %q", got, tt.wantMetrics)
+			}
+		})
 	}
 }
