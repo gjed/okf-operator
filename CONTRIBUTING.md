@@ -59,7 +59,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). The 
 | Job       | Trigger                   | Description                                            |
 | --------- | ------------------------- | ------------------------------------------------------ |
 | `changes` | every PR + push to `main` | Skips lint, test and build for docs-only PRs           |
-| `lint`    | every PR + push to `main` | golangci-lint                                          |
+| `lint`    | every PR + push to `main` | golangci-lint, `go mod tidy` and generated-file checks |
 | `test`    | every PR + push to `main` | `go test -race`, JUnit XML upload, coverage PR comment |
 | `build`   | every PR + push to `main` | `go build ./...`                                       |
 | `release` | push to `main`            | semantic-release: version tag + GitHub release         |
