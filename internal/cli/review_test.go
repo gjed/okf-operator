@@ -19,7 +19,7 @@ const reviewSupported = `{"choices":[{"message":{"role":"assistant","content":"{
 func reviewFixture(t *testing.T) (*githubtest.Fake, string) {
 	t.Helper()
 	fake, planFile := gateFixture(t)
-	fake.SetFile("acme/kb", gateBase, "product/api.md", "---\ntype: Service\n---\n# API\n")
+	fake.SetFile("acme/kb", gateBase, "product/api.md", "---\ntype: Service\n---\n# API\n\nOld text.\n")
 	fake.SetCompare("acme/api", "a", gateSource, []byte(`{"status":"ahead","files":[
 		{"filename":"api/x.go","status":"modified","patch":"@@ -1 +1 @@\n-old\n+new\n","changes":2}]}`))
 	for _, k := range []string{EnvReviewModelBaseURL, EnvReviewModel, EnvReviewModelAPIKey, EnvModelBaseURL, EnvModel, EnvModelAPIKey} {
