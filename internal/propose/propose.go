@@ -119,7 +119,8 @@ const BranchPrefix = "okf/"
 func Branch(source string) string { return BranchPrefix + source }
 
 // DecodeReport reads one write report document of version write.Version.
-// Unknown keys and other versions fail.
+// Unknown keys and other versions fail: a report of an older write is not
+// accepted, since it cannot hold the results this propose commits.
 func DecodeReport(r io.Reader) (*write.Report, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
@@ -131,7 +132,7 @@ func DecodeReport(r io.Reader) (*write.Report, error) {
 		return nil, errors.New("decode report: more than one JSON document")
 	}
 	if rep.Version != write.Version {
-		return nil, fmt.Errorf("report version %d is not supported, want %d", rep.Version, write.Version)
+		return nil, fmt.Errorf("report version %d is not supported, want %d: re-run write with this release", rep.Version, write.Version)
 	}
 	return &rep, nil
 }
@@ -163,6 +164,10 @@ func Agree(p *plan.Plan, rep *write.Report) error {
 		}
 		switch pg.Result {
 		case write.ResultChanged, write.ResultCreated, write.ResultUnchanged, write.ResultDropped:
+		case write.ResultRestamped:
+			if p.Reconcile == nil {
+				return fmt.Errorf("report page %s is %s but the plan is not a reconcile plan", pg.Path, pg.Result)
+			}
 		default:
 			return fmt.Errorf("report page %s has unknown result %q", pg.Path, pg.Result)
 		}
@@ -176,7 +181,7 @@ func Agree(p *plan.Plan, rep *write.Report) error {
 	return nil
 }
 
-// Run proposes the pages rep marks changed or created and advances the cursor. All
+// Run proposes the pages rep marks changed, created or restamped and advances the cursor. All
 // reads happen before the first write, and the cursor moves last. A reconcile
 // plan always takes the PR flow: its pages are not tied to the cursor range.
 func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result, error) {
@@ -228,7 +233,7 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	if err != nil {
 		return nil, err
 	}
-	files, err := Verify(d.KnowledgeDir, tree, pagesWith(rep, write.ResultChanged), pagesWith(rep, write.ResultCreated))
+	files, err := Verify(d.KnowledgeDir, tree, pagesWith(rep, write.ResultChanged, write.ResultRestamped), pagesWith(rep, write.ResultCreated))
 	if err != nil {
 		return nil, err
 	}
@@ -292,10 +297,10 @@ func Run(ctx context.Context, p *plan.Plan, rep *write.Report, d Deps) (*Result,
 	return res, nil
 }
 
-func pagesWith(rep *write.Report, result string) map[string]bool {
+func pagesWith(rep *write.Report, results ...string) map[string]bool {
 	out := map[string]bool{}
 	for _, pg := range rep.Pages {
-		if pg.Result == result {
+		if slices.Contains(results, pg.Result) {
 			out[pg.Path] = true
 		}
 	}

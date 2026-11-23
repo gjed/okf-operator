@@ -68,7 +68,7 @@ func proposeFixture(t *testing.T, kbRepo string) (fake *githubtest.Fake, dir, pl
 }
 
 func proposeReport(to string) string {
-	return fmt.Sprintf(`{"version":2,"source":"acme/api","bundle":"product","from":%q,"to":%q,"model":"m1","generated_by":"okf-operator dev",
+	return fmt.Sprintf(`{"version":3,"source":"acme/api","bundle":"product","from":%q,"to":%q,"model":"m1","generated_by":"okf-operator dev",
 		"pages":[{"path":"product/api.md","result":"changed","reason":"","attempts":1,"tokens":{"prompt":10,"completion":5}}],
 		"tokens":{"prompt":10,"completion":5}}`, planCursor, to)
 }

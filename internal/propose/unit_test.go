@@ -13,16 +13,18 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/gjed/okf-operator/internal/plan"
 	"github.com/gjed/okf-operator/internal/write"
 )
 
 func TestDecodeReport(t *testing.T) {
 	tests := []struct{ name, doc, want string }{
-		{"ok", `{"version":2,"source":"acme/api","pages":[]}`, ""},
+		{"ok", `{"version":3,"source":"acme/api","pages":[]}`, ""},
 		{"version 1", `{"version":1}`, "report version 1 is not supported"},
-		{"version 3", `{"version":3}`, "report version 3 is not supported"},
-		{"unknown key", `{"version":2,"extra":true}`, "unknown field"},
-		{"two documents", `{"version":2} {"version":2}`, "more than one JSON document"},
+		{"version 2 from an older write", `{"version":2,"source":"acme/api","pages":[]}`, "report version 2 is not supported, want 3: re-run write"},
+		{"version 4", `{"version":4}`, "report version 4 is not supported"},
+		{"unknown key", `{"version":3,"extra":true}`, "unknown field"},
+		{"two documents", `{"version":3} {"version":3}`, "more than one JSON document"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,6 +51,11 @@ func TestAgree(t *testing.T) {
 		{"plan page missing", func(f *fixture) { f.rep.Pages = f.rep.Pages[1:] }, "docs/a.md is missing from the report"},
 		{"page twice", func(f *fixture) { f.rep.Pages[1].Path = "docs/a.md" }, "twice"},
 		{"unknown result", func(f *fixture) { f.rep.Pages[1].Result = "maybe" }, "unknown result"},
+		{"restamped on a version 1 plan", func(f *fixture) { f.rep.Pages[1].Result = write.ResultRestamped }, "docs/b.md is restamped but the plan is not a reconcile plan"},
+		{"restamped on a reconcile plan", func(f *fixture) {
+			f.asReconcile(plan.CursorHead)
+			f.rep.Pages[1].Result = write.ResultRestamped
+		}, ""},
 		{"created page outside the plan", func(f *fixture) {
 			f.rep.Pages[0] = write.PageResult{Path: "docs/new.md", Result: write.ResultCreated}
 		}, "docs/new.md is not a plan page"},
