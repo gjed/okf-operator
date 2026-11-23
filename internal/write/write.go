@@ -640,6 +640,13 @@ func accept(j *job, reply model.Reply, f provenance.Fields, v Validator) ([]byte
 	if text == NoChange && j.create {
 		return nil, false, fmt.Errorf("the page does not exist yet: reply with the complete new page, not %s", NoChange)
 	}
+	if text == NoChange && j.restamp {
+		// A page that cannot take provenance could never be re-stamped, so it
+		// would stay planned and paid for on every reconcile.
+		if _, err := provenance.Stamp(j.current, f); err != nil {
+			return nil, false, fmt.Errorf("the current page cannot take provenance (%v): reply with the complete page, not %s", err, NoChange)
+		}
+	}
 	if text == NoChange {
 		return nil, true, nil
 	}
