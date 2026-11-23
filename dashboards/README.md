@@ -12,7 +12,7 @@ The dashboard has been checked against Grafana 12 and Prometheus 3. It uses only
 
 ## Get the metrics into Prometheus
 
-The operator exports through the standard `OTEL_*` variables, see [Telemetry](../README.md#telemetry). Nothing is exported until an OTLP endpoint is set. Pick one path:
+The operator exports through the standard `OTEL_*` variables, see [Telemetry](../README.md#telemetry). Nothing is exported until an exporter or an OTLP endpoint is set. Pick one path:
 
 - **OpenTelemetry Collector.** Point the operator at the collector and let Prometheus scrape the collector's `prometheus` exporter.
 - **Prometheus OTLP receiver.** Start Prometheus with `--web.enable-otlp-receiver` and point the operator at `http://<prometheus>:9090/api/v1/otlp/v1/metrics`.
@@ -81,7 +81,7 @@ Attributes the queries use:
 | `okf_controller_trigger`                      | `okf_controller_runs_queued_total`                                                                      |
 | `okf_controller_stage`, `okf_controller_mode` | `okf_controller_run_failures_total`                                                                     |
 
-Scrape the operator directly only for debugging: the operator honours `OTEL_METRICS_EXPORTER` only when an OTLP endpoint is also set, so `OTEL_METRICS_EXPORTER=prometheus` needs `OTEL_EXPORTER_OTLP_ENDPOINT` set to any value as well, and then serves `/metrics` on port 9464.
+Scrape the operator directly only for debugging: `OTEL_METRICS_EXPORTER=prometheus` serves `/metrics` on port 9464, with no OTLP endpoint needed.
 
 ## Import the dashboard
 
