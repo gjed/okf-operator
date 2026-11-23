@@ -67,3 +67,9 @@ jobs:
             echo "a secrets entry without names rendered" >&2
             exit 1
           fi
+          # Two entries for one namespace would render the same Role twice.
+          if helm template okf-operator deploy/chart --namespace okf-operator \
+            --set 'secrets[0].names={a}' --set 'secrets[1].namespace=okf-operator' --set 'secrets[1].names={b}' > /dev/null 2>&1; then
+            echo "a namespace listed twice rendered" >&2
+            exit 1
+          fi
