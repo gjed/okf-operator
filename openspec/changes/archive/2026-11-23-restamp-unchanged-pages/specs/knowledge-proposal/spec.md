@@ -4,7 +4,7 @@
 
 ### Requirement: Propose inputs
 
-`propose` SHALL require `--plan <file>`, `--report <file|->` (`-` for stdin), `--knowledge-dir`, `--knowledge-repo` and `--knowledge-base <sha>` (the commit the checkout is at), and accept the GitHub App flags. A missing flag or a `--knowledge-base` that is not a full commit SHA SHALL exit 2. A plan that `write` rejects as input, a report whose `version` is not `3`, or a report with unknown keys, SHALL exit 1. The error for another report version SHALL name the version and tell the user to re-run `write`.
+`propose` SHALL require `--plan <file>`, `--report <file|->` (`-` for stdin), `--knowledge-dir`, `--knowledge-repo` and `--knowledge-base <sha>` (the commit the checkout is at), and accept the GitHub App flags. A missing flag or a `--knowledge-base` that is not a full commit SHA SHALL exit 2. A plan that `write` rejects, a report whose `version` is not `3`, or a report with unknown keys SHALL exit 1, and the version error SHALL say to re-run `write`.
 
 #### Scenario: Missing knowledge base
 
@@ -119,12 +119,16 @@ Before any GitHub write for a plan that is not initial, `propose` SHALL compare 
 
 ### Requirement: Reconcile PR body section
 
-The PR body section of a version 2 plan SHALL start with the range marker line, name the reconciled commit and the cursor state, list every page that is not `restamped` with its result, its reconcile reason and its drop reason, list every `restamped` page with its reconcile reason apart, under the heading "Provenance refreshed, content unchanged", and list every deletion candidate with its `source_sha` and `source_paths`, stating that it was not deleted. `propose` SHALL log each deletion candidate at warn level and SHALL NOT commit, delete or move it.
+The PR body section of a version 2 plan SHALL start with the range marker line, name the reconciled commit and the cursor state, list every page with its result, its reconcile reason and its drop reason, and list every deletion candidate with its `source_sha` and `source_paths`, stating that it was not deleted. `propose` SHALL log each deletion candidate at warn level and SHALL NOT commit, delete or move it.
 
 #### Scenario: Reconcile section with a deletion candidate
 
 - **WHEN** a version 2 plan with one changed page and one deletion candidate is proposed
 - **THEN** the section lists the page with its reason and the candidate's path and source paths, and the candidate's file is not part of the commit
+
+### Requirement: Re-stamped pages are listed apart
+
+The PR body section of a version 2 plan SHALL list each page whose result is `restamped` apart from the other pages, under "Provenance refreshed, content unchanged", with its reconcile reason, and SHALL NOT list it with the other pages' results.
 
 #### Scenario: Reconcile section with a restamped page
 

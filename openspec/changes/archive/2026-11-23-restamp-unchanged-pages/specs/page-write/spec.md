@@ -91,7 +91,7 @@ The write report and the files under `--knowledge-dir` SHALL be the input contra
 
 ### Requirement: Write telemetry
 
-Each `write` run SHALL annotate the dispatcher's `write` span with the source repo, bundle, model and the counts of changed, created, restamped, unchanged and dropped pages, and SHALL record the counters `okf.write.tokens` (attribute `okf.token.kind`: `prompt` or `completion`), `okf.write.pages` (attribute `okf.write.result`: `changed`, `created`, `restamped`, `unchanged` or `dropped`) and `okf.write.validation_failures`, labelled by source repo and bundle. No metric other than these three SHALL be added.
+Each `write` run SHALL annotate the dispatcher's `write` span with the source repo, bundle, model and the counts of changed, created, restamped, unchanged and dropped pages, and SHALL record the counters `okf.write.tokens` (attribute `okf.token.kind`: `prompt` or `completion`), `okf.write.pages` (attribute `okf.write.result`: `changed`, `created`, `restamped`, `unchanged` or `dropped`) and `okf.write.validation_failures`, labelled by source repo and bundle.
 
 #### Scenario: Span and counters
 
