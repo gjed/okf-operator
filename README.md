@@ -316,6 +316,8 @@ See [Controller](docs/controller.md) for the resources, Secrets, webhook events,
 
 Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver.
 
+A Grafana dashboard and two Prometheus alert rules for the metrics live in [`dashboards/`](dashboards/README.md), with the name translation they assume and how to import them.
+
 ## Licence
 
 Apache License 2.0. See [LICENSE](LICENSE).
