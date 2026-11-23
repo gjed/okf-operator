@@ -42,7 +42,7 @@ The policy is off by default: it needs a CNI that enforces it and values the cha
 
 ### Workflow permissions
 
-`image.yml` had `packages: write` for the whole workflow. Both jobs now declare their own `contents: read` and `packages: write`, with the workflow default reduced to `contents: read`. The new `chart.yml` declares `permissions: {}` and `contents: read` for its job.
+`image.yml` had `packages: write` for the whole workflow. The workflow default is now `permissions: {}`, and the `image` and the new chart job each declare `contents: read` and `packages: write`. The new `chart.yml` declares `permissions: {}` and `contents: read` for its job.
 
 ### pre-commit
 
