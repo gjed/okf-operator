@@ -25,6 +25,8 @@ The pages considered are the route targets of the source and every `.md` page of
 | `source_sha` equals `to`, or no routed file changed since, and none is new   | Not planned                                                                     |
 | No route matches a file at `to` and none of its `source_paths` exists        | Deletion candidate                                                              |
 
+A page the model leaves unchanged is not planned again: `write` re-stamps its provenance to `to` and records its `routed_paths`, so the next `reconcile` finds it current. See [Writing pages](write.md#pages-the-model-leaves-unchanged). The re-stamp is a frontmatter-only change in the bot PR, listed apart under "Provenance refreshed, content unchanged". Like every reconcile PR, it goes to a human.
+
 A cursor or a page `source_sha` that is ahead of `to` exits 1: `reconcile` never moves either back to an older commit, so pass a `--to` at or after the cursor.
 
 Reason `rename` means the compare reports one of the page's `source_paths` as the previous name of a renamed file. A route target whose frontmatter is malformed exits 1; other malformed bundle pages are skipped with a log line.

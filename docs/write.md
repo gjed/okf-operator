@@ -58,7 +58,7 @@ Each reply must be a valid OKF concept page: frontmatter that is a YAML mapping,
 
 `routed_paths` is what lets `reconcile` notice a route widened to unchanged files; see [Reconciling a source](reconcile.md#widened-routes). `write` sets it to the reconcile entry's `routed_paths` when the plan has one. Otherwise it takes the page's current `routed_paths`, adds the page's `source_paths` and drops the files the plan's `changed_paths` report as removed or renamed away. A created page records its `source_paths`. A page that has no `routed_paths` yet keeps none, and a model-written value is removed. The current page goes into the prompt without `routed_paths`, so a broad route does not count against `--max-tokens-per-page`.
 
-Other frontmatter keys keep their order and values. A reply that matches the current page apart from these keys counts as unchanged and the file is not touched.
+Other frontmatter keys keep their order and values. In a `plan` run, a reply that matches the current page apart from these keys counts as unchanged and the file is not touched. A reconcile plan re-stamps such a page instead, see [Reconcile plans](#reconcile-plans).
 
 ## Budget
 
@@ -73,7 +73,7 @@ Both limits are checked before the first model call. A run over either one exits
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "source": "acme/api",
   "bundle": "product",
   "from": "1111111111111111111111111111111111111111",
@@ -107,7 +107,7 @@ Both limits are checked before the first model call. A run over either one exits
 }
 ```
 
-`version` is `2` since page creation added the `created` result. `pages` lists every plan page, sorted by path. `result` is `changed`, `created`, `unchanged` or `dropped`. `reason` is empty unless the page was dropped:
+`version` is `3` since the `restamped` result was added; it was `2` after `created`. `propose` accepts only the version it was built with and fails clearly on another, so re-run `write` after upgrading both. `pages` lists every plan page, sorted by path. `result` is `changed`, `created`, `restamped`, `unchanged` or `dropped`. `reason` is empty unless the page was dropped:
 
 | Reason              | Meaning                                                                  |
 | ------------------- | ------------------------------------------------------------------------ |
@@ -128,8 +128,14 @@ Both limits are checked before the first model call. A run over either one exits
 
 Version 2 prompts carry no source PR context: each page has its own range, or none. Budget, validation, provenance (`source_sha` is the plan's `to`) and the working-tree rules are the same as for a `plan` run, so whole files count against `--max-tokens-per-page`.
 
+### Pages the model leaves unchanged
+
+When the model answers `NO_CHANGE` for an `update` page of a reconcile plan, or returns the page unchanged apart from provenance, `write` re-stamps it: the provenance values (`source_sha`, `source_paths`, `routed_paths`, `updated_at`, `generated_by`) are refreshed as for a changed page, and the body, the other frontmatter keys, their order and the comments stay as they were. The page is reported as `restamped` and counted in `okf.write.pages` with `okf.write.result=restamped`. Without this, a stale or widened page the model judges current would keep its old `source_sha` or `routed_paths`, and every later `reconcile` would plan it, and pay for a model call, again. A re-stamp that would leave the file byte for byte the same is reported `unchanged`.
+
+Only reconcile plans re-stamp. A `plan` run leaves an unchanged page untouched, because its range is the cursor's and the next `plan` does not look at the page again.
+
 ## Working tree
 
-Files change only when `write` exits 0, and then exactly the pages with result `changed` are modified and the pages with result `created` are added. No other file is created, and none is deleted. A create never overwrites a file: a plan whose create path already exists in the checkout fails before any model call (run `plan` against the same checkout as `write`, the open bot PR's branch when there is one, so a page created in that PR is planned as an update), and the new file is linked into place only if its name is still free. `write` does not add created pages to the bundle `index.md`; the reviewer of the knowledge PR does. A run that exits non-zero leaves the checkout untouched. The one exception is a write error such as a full disk after some pages were written; the error lists those pages.
+Files change only when `write` exits 0, and then exactly the pages with result `changed` or `restamped` are modified and the pages with result `created` are added. No other file is created, and none is deleted. A create never overwrites a file: a plan whose create path already exists in the checkout fails before any model call (run `plan` against the same checkout as `write`, the open bot PR's branch when there is one, so a page created in that PR is planned as an update), and the new file is linked into place only if its name is still free. `write` does not add created pages to the bundle `index.md`; the reviewer of the knowledge PR does. A run that exits non-zero leaves the checkout untouched. The one exception is a write error such as a full disk after some pages were written; the error lists those pages.
 
 `propose` takes the report and the working tree as its input.
