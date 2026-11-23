@@ -72,6 +72,7 @@ func TestSetupExporterEnv(t *testing.T) {
 			t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "")
 			t.Setenv("OTEL_TRACES_EXPORTER", tt.traces)
 			t.Setenv("OTEL_METRICS_EXPORTER", tt.metrics)
+			t.Setenv("OTEL_EXPORTER_PROMETHEUS_PORT", "0")
 			shutdown, err := Setup(context.Background())
 			if err != nil {
 				t.Fatal(err)
