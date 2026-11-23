@@ -51,7 +51,7 @@ func widenedEntry(path string, routed ...string) plan.ReconcilePage {
 }
 
 // For a reconcile plan, NO_CHANGE re-stamps only the provenance values: the
-// body, the other keys, their order and the comments stay byte for byte.
+// body stays byte for byte; the other keys, their order and the comments are kept.
 func TestRunReconcileNoChangeRestamps(t *testing.T) {
 	cases := map[string]struct {
 		entry func(path string) plan.ReconcilePage

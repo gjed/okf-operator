@@ -4,12 +4,12 @@
 
 ### Requirement: Unchanged reconcile pages are re-stamped
 
-For a version 2 plan, a page whose model reply is `NO_CHANGE`, or the current page unchanged apart from provenance keys, SHALL be reported `restamped`. Its provenance keys SHALL be stamped as for a changed page through `internal/provenance`, and its file replaced. The body, every other frontmatter key, their order and the comments SHALL be preserved byte for byte.
+For a version 2 plan, a page whose model reply is `NO_CHANGE`, or the current page unchanged apart from provenance keys, SHALL be reported `restamped`. Its provenance keys SHALL be stamped as for a changed page through `internal/provenance`, and its file replaced. The body SHALL be preserved byte for byte, and every other frontmatter key, its value, their order and the comments SHALL be kept. The frontmatter formatting, such as list indentation or blank lines, MAY be normalized by the encoder.
 
 #### Scenario: Stale and widened pages answered NO_CHANGE
 
 - **WHEN** a version 2 plan has one `stale` and one `widened` page and the model replies `NO_CHANGE` to both
-- **THEN** both are reported `restamped`, each file has `source_sha` equal to the plan's `to` and the entry's `routed_paths`, and each body, every other key, their order and the comments are byte-identical to before
+- **THEN** both are reported `restamped`, each file has `source_sha` equal to the plan's `to` and the entry's `routed_paths`, and each body is byte-identical to before and every other key, its value, their order and the comments are kept
 
 #### Scenario: Second reconcile from the advanced state
 
