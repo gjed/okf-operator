@@ -297,3 +297,42 @@ func TestDecodeRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// A page whose head differs from its base only in provenance has no changed
+// statement: it passes with no model call and no source compare.
+func TestProvenanceOnlyPagePassesWithoutModelCall(t *testing.T) {
+	f := newFixture(t, answer(`not called`))
+	f.fake.SetFile(kbRepo, baseSHA, apiPath, page(fromSHA, "2026-11-17T10:00:00Z", "Rate limit is 10 rps."))
+	f.fake.SetFile(kbRepo, headSHA, apiPath, page(toSHA, "2026-11-18T10:00:00Z", "Rate limit is 10 rps."))
+	r, err := f.run(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Page{{Path: apiPath, Pass: true, Unsupported: []string{}}}
+	if !r.Pass || !reflect.DeepEqual(r.Pages, want) || r.Tokens != (Tokens{}) {
+		t.Fatalf("result = %+v", r)
+	}
+	if n := len(f.model.prompts()); n != 0 {
+		t.Errorf("model calls = %d, want 0", n)
+	}
+	for _, req := range f.fake.Requests() {
+		if strings.Contains(req, "/compare/") {
+			t.Errorf("review read the source range: %s", req)
+		}
+	}
+}
+
+// Any change outside the provenance keys is reviewed, a changed custom key
+// included.
+func TestNonProvenanceFrontmatterChangeIsReviewed(t *testing.T) {
+	f := newFixture(t, answer(supported))
+	base := page(fromSHA, "2026-11-17T10:00:00Z", "Rate limit is 5 rps.")
+	f.fake.SetFile(kbRepo, baseSHA, apiPath, strings.Replace(base, "type: Service\n", "type: Service\nowner: team-a\n", 1))
+	f.fake.SetFile(kbRepo, headSHA, apiPath, strings.Replace(page(toSHA, "2026-11-18T10:00:00Z", "Rate limit is 5 rps."), "type: Service\n", "type: Service\nowner: team-b\n", 1))
+	if _, err := f.run(t); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.model.prompts()); n != 1 {
+		t.Errorf("model calls = %d, want 1", n)
+	}
+}

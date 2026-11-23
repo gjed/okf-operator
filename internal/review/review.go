@@ -4,6 +4,7 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,6 +38,11 @@ const (
 	VerdictSupported   = "supported"
 	VerdictUnsupported = "unsupported"
 )
+
+// ReasonProvenanceOnly is logged for a page that passes without a model call
+// because only its provenance fields changed. It is not a Page reason: the
+// page passes.
+const ReasonProvenanceOnly = "provenance_only"
 
 // statusRemoved is the files API status of a deleted file.
 const statusRemoved = "removed"
@@ -142,6 +148,12 @@ func Run(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*Result
 			if err != nil {
 				return nil, err
 			}
+			if j.provenanceOnly() {
+				// Nothing but provenance changed: no statement to support, so no model call.
+				pg.Pass = true
+				d.Logger.InfoContext(ctx, "page reviewed", "page", pg.Path, "pass", true, "reason", ReasonProvenanceOnly)
+				continue
+			}
 			j.sourcePaths = slices.Sorted(slices.Values(pp.SourcePaths))
 			jobs = append(jobs, j)
 		}
@@ -197,6 +209,16 @@ func load(ctx context.Context, r gate.Reader, repo string, pr *gate.PR, f gate.F
 		return nil, err
 	}
 	return &job{page: pg, before: before, after: after, isNew: !found}, nil
+}
+
+// provenanceOnly reports whether the page head differs from the base only in
+// its provenance fields, as the reviewer would see it. A new page never does.
+func (j *job) provenanceOnly() bool {
+	if j.isNew {
+		return false
+	}
+	before, after := align(j.before, j.after, false)
+	return bytes.Equal(before, after)
 }
 
 // fetchPatches reads the patches of every job's source paths with one compare.
