@@ -1,0 +1,69 @@
+name: Chart
+
+on:
+  pull_request:
+    paths:
+      - deploy/**
+      - .github/workflows/chart.yml
+
+# No token scopes by default; each job declares the minimum it uses.
+permissions: {}
+
+jobs:
+  chart:
+    name: Chart
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2
+
+      - name: Check chart CRDs
+        # `make generate` writes the CRDs to deploy/crds and copies them to the
+        # chart; a stale copy fails here. The generated-files step of the CI
+        # workflow checks deploy/crds against api/.
+        run: diff -r deploy/crds deploy/chart/crds
+
+      - name: Lint
+        run: |
+          helm lint --strict deploy/chart
+          helm lint --strict deploy/chart \
+            --set ingress.enabled=true --set ingress.host=okf.example.com \
+            --set networkPolicy.enabled=true
+
+      - name: Render with default values
+        run: helm template okf-operator deploy/chart --namespace okf-operator > "$RUNNER_TEMP/default.yaml"
+
+      - name: Render with Ingress, NetworkPolicy and Secret access
+        run: |
+          helm template okf-operator deploy/chart --namespace okf-operator \
+            --set ingress.enabled=true \
+            --set ingress.host=okf.example.com \
+            --set ingress.className=nginx \
+            --set ingress.tlsSecretName=okf-tls \
+            --set networkPolicy.enabled=true \
+            --set 'secrets[0].names={knowledge-app,knowledge-webhook}' \
+            > "$RUNNER_TEMP/all.yaml"
+          grep -q '^kind: Ingress$' "$RUNNER_TEMP/all.yaml"
+          grep -q '^kind: NetworkPolicy$' "$RUNNER_TEMP/all.yaml"
+
+      - name: Check Secret handling
+        run: |
+          # The chart references Secrets by name and never creates one.
+          if grep -q '^kind: Secret$' "$RUNNER_TEMP/default.yaml" "$RUNNER_TEMP/all.yaml"; then
+            echo "the chart renders a Secret" >&2
+            exit 1
+          fi
+          # An entry with no names would grant every Secret in the namespace.
+          if helm template okf-operator deploy/chart --set 'secrets[0].namespace=team-a' > /dev/null 2>&1; then
+            echo "a secrets entry without names rendered" >&2
+            exit 1
+          fi
