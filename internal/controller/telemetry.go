@@ -151,6 +151,15 @@ func (t *Tracker) proposed(source string) (time.Time, bool) {
 	return at, ok
 }
 
+// forget drops a deleted Source's pending merge and staleness entry, so the
+// gauge stops reporting it.
+func (t *Tracker) forget(source string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.merges, source)
+	delete(t.caughtUp, source)
+}
+
 // atHead records that a Source's cursor reached the source HEAD.
 func (t *Tracker) atHead(source, repo string, at time.Time) {
 	t.mu.Lock()
