@@ -60,8 +60,14 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "okf-operator.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- $seen := dict }}
 {{- range $i, $entry := .Values.secrets }}
 {{- $ns := default $.Release.Namespace $entry.namespace }}
+{{- /* Two entries for one namespace would render the same Role twice. */}}
+{{- if hasKey $seen $ns }}
+{{- fail (printf "secrets[%d]: namespace %s is already listed; put all its names in one entry" $i $ns) }}
+{{- end }}
+{{- $_ := set $seen $ns true }}
 {{- /* A rule with no resourceNames would grant every Secret in the namespace. */}}
 {{- if not $entry.names }}
 {{- fail (printf "secrets[%d].names must list at least one Secret name" $i) }}

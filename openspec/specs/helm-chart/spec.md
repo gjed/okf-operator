@@ -44,12 +44,17 @@ The chart SHALL grant the ServiceAccount, cluster-wide, `get`, `list` and `watch
 
 ### Requirement: Secrets readable by name only
 
-The chart SHALL grant `get` on Secrets only through `resourceNames`, one Role and RoleBinding per namespace of the `secrets` values list, and SHALL NOT grant `list` or `watch` on Secrets. A list entry with no names SHALL fail the render.
+The chart SHALL grant `get` on Secrets only through `resourceNames`, one Role and RoleBinding per namespace of the `secrets` values list, and SHALL NOT grant `list` or `watch` on Secrets. A list entry with no names, or two entries for one namespace, SHALL fail the render.
 
 #### Scenario: Listed and unlisted Secrets
 
 - **WHEN** `secrets` lists namespace `team-a` with the name `kb-app`
 - **THEN** the ServiceAccount can `get` the Secret `kb-app` in `team-a`, and cannot `get` another Secret there or `list` Secrets
+
+#### Scenario: Namespace listed twice
+
+- **WHEN** two `secrets` entries resolve to the same namespace, one of them by omitting `namespace`
+- **THEN** rendering fails instead of rendering two Roles with the same name
 
 #### Scenario: Entry without names
 

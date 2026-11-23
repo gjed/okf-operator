@@ -27,7 +27,8 @@ serviceAccount:
 # appSecretRef, model apiKeySecretRef and webhookSecretRef must be listed in
 # the namespace of that KnowledgeBase. The chart renders one Role and
 # RoleBinding per entry with `get` on those names only, and never creates a
-# Secret: create them yourself. The namespaces must exist.
+# Secret: create them yourself. The namespaces must exist, and each may
+# appear in one entry only.
 #
 #   secrets:
 #     - namespace: team-a        # defaults to the release namespace
