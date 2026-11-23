@@ -26,6 +26,17 @@ helm template okf-operator oci://ghcr.io/gjed/charts/okf-operator \
   --version 1.2.3 --namespace okf-operator -f values.yaml | kubectl apply -n okf-operator -f -
 ```
 
+To move a cluster that applied the removed `deploy/controller` manifests by hand, delete their objects first, because `helm install` refuses to take over objects it did not create. Keep the namespace, the CRDs and your `KnowledgeBase`, `Source` and Secret resources; the chart's `crds/` skips CRDs that already exist.
+
+```bash
+kubectl -n okf-operator delete deployment/okf-operator service/okf-operator-webhook serviceaccount/okf-operator \
+  role/okf-operator-leader-election rolebinding/okf-operator-leader-election \
+  role/okf-operator-secrets rolebinding/okf-operator-secrets
+kubectl delete clusterrole/okf-operator clusterrolebinding/okf-operator
+```
+
+Delete `role/okf-operator-secrets` and its binding in every other namespace where you repeated them, then install the chart and list those Secrets under `secrets`. The controller is down until the install finishes; runs resume from the cursors on `kb-state`.
+
 The Deployment runs one replica with the `Recreate` strategy, a non-root user, a read-only root filesystem, no capabilities and the `RuntimeDefault` seccomp profile. None of this is a value: a change would break leader election or the hardening.
 
 ### Values
