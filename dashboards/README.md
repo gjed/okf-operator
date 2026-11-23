@@ -114,7 +114,7 @@ The `Source` and `Bundle` variables filter the panels whose metrics carry those 
 | Source merge to knowledge PR                                         | `histogram_quantile` over `okf_controller_merge_to_pr_seconds_bucket`                                        | Merge times are in memory; default histogram bounds make the quantiles coarse                                                 |
 | Share of PRs auto-merged                                             | `okf_controller_prs_approved_total` over `okf_propose_prs_opened_total` plus `okf_propose_prs_updated_total` | Approval, not the merge, which the operator does not see; counts each push to a PR as a run; reconcile PRs are never approved |
 | Tokens per run                                                       | `okf_write_tokens_total`, `okf_review_tokens_total`, divided by PR-producing runs                            | Tokens of failed runs are in the numerator only                                                                               |
-| Cursor staleness                                                     | `okf_controller_cursor_staleness_seconds`                                                                    | Appears after a run first reaches HEAD; restarts with the controller                                                          |
+| Cursor staleness                                                     | `okf_controller_cursor_staleness_seconds`                                                                    | Appears after a run first reaches HEAD; ends when the `Source` is deleted; restarts with the controller                       |
 
 No metric counts `write` or `review` runs, so "per run" divides by `okf_propose_prs_opened_total` plus `okf_propose_prs_updated_total`, which `propose` adds with 0 or 1 once per run. "Pages changed" counts `okf_write_result` values `changed` and `created`; the pages-by-result panel shows every value present.
 
@@ -153,7 +153,7 @@ Both thresholds, both look-back windows and both `for` durations are literals in
 
 `OkfOperatorCursorStale` cannot tell merges no run proposed from runs that keep failing: both leave the cursor behind HEAD. Read the run failure panel and the `Source` status for the cause.
 
-The controller never forgets a deleted `Source`'s staleness entry, so a `Source` deleted while it was current keeps reporting a growing staleness: `OkfOperatorCursorStale` fires for its source repo four hours later and stays firing, and the staleness panel keeps drawing it, until the controller restarts. Restart the controller, or silence the alert for that `okf_source_repo`, after deleting a `Source`.
+A deleted `Source` stops reporting: the controller drops its staleness entry when it sees the `Source` gone, so its series ends and `OkfOperatorCursorStale` resolves once Prometheus marks the series stale. Staleness is labelled by `okf_source_repo` only, so two `Source`s on the same source repo share one series and only one of them is drawn; deleting one of them leaves the series with the other.
 
 Check the rules and their tests with `promtool`:
 
