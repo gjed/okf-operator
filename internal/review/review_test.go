@@ -336,3 +336,32 @@ func TestNonProvenanceFrontmatterChangeIsReviewed(t *testing.T) {
 		t.Errorf("model calls = %d, want 1", n)
 	}
 }
+
+// Only a modified page whose provenance changed passes unreviewed: a rename
+// or a page with identical bytes at both ends goes through the normal review.
+func TestProvenanceOnlyShortcutExcludesRenameAndIdenticalPages(t *testing.T) {
+	same := page(toSHA, "2026-11-18T10:00:00Z", "Rate limit is 10 rps.")
+	t.Run("identical bytes", func(t *testing.T) {
+		f := newFixture(t, answer(supported))
+		f.fake.SetFile(kbRepo, baseSHA, apiPath, same)
+		f.fake.SetFile(kbRepo, headSHA, apiPath, same)
+		if _, err := f.run(t); err != nil {
+			t.Fatal(err)
+		}
+		if n := len(f.model.prompts()); n != 1 {
+			t.Errorf("model calls = %d, want 1", n)
+		}
+	})
+	t.Run("rename", func(t *testing.T) {
+		f := newFixture(t, answer(supported))
+		f.fake.SetFile(kbRepo, baseSHA, "product/old.md", page(fromSHA, "2026-11-17T10:00:00Z", "Rate limit is 10 rps."))
+		f.files = []githubtest.PullFile{{Filename: apiPath, Status: "renamed", PreviousFilename: "product/old.md"}}
+		f.fake.SetFile(kbRepo, headSHA, apiPath, same)
+		if _, err := f.run(t); err != nil {
+			t.Fatal(err)
+		}
+		if n := len(f.model.prompts()); n != 1 {
+			t.Errorf("model calls = %d, want 1", n)
+		}
+	})
+}
