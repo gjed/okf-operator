@@ -71,6 +71,11 @@ jobs:
           # renovate: datasource=github-releases depName=golangci/golangci-lint
           version: v2.15.0
 
+      - name: Check go.mod and go.sum are tidy
+        # A dependency bump that changes go.mod without an import passed CI
+        # before; this prints the diff and fails if `go mod tidy` would change it.
+        run: go mod tidy -diff
+
       - name: Check generated files
         # CRDs and deepcopy code are committed; a stale copy fails here.
         run: |
