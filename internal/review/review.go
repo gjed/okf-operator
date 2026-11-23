@@ -110,6 +110,7 @@ type job struct {
 	before      []byte
 	after       []byte
 	isNew       bool
+	renamed     bool
 }
 
 // Run reviews every changed Markdown page of PR n of repo against plan p. An
@@ -208,13 +209,14 @@ func load(ctx context.Context, r gate.Reader, repo string, pr *gate.PR, f gate.F
 	if err != nil {
 		return nil, err
 	}
-	return &job{page: pg, before: before, after: after, isNew: !found}, nil
+	return &job{page: pg, before: before, after: after, isNew: !found, renamed: f.PreviousPath != ""}, nil
 }
 
 // provenanceOnly reports whether the page head differs from the base only in
-// its provenance fields, as the reviewer would see it. A new page never does.
+// its provenance fields, as the reviewer would see it. A new page, a renamed
+// page and a page whose bytes did not change never do.
 func (j *job) provenanceOnly() bool {
-	if j.isNew {
+	if j.isNew || j.renamed || bytes.Equal(j.before, j.after) {
 		return false
 	}
 	before, after := align(j.before, j.after, false)
