@@ -5,10 +5,62 @@
 ## Install
 
 ```bash
-kubectl apply -f deploy/crds -f deploy/controller
+helm install okf-operator oci://ghcr.io/gjed/charts/okf-operator \
+  --version 1.2.3 --namespace okf-operator --create-namespace -f values.yaml
 ```
 
-[`deploy/controller`](../deploy/controller) holds the `okf-operator` namespace, a one-replica Deployment, the webhook Service and RBAC. Pin the image to a release tag. [`deploy/samples`](../deploy/samples/knowledgebase.yaml) is a `KnowledgeBase`, a `Source` and the Secrets they reference.
+The chart and the image are published under the same release version, and the chart runs the image of its own version unless `image.tag` says otherwise. Pin `--version` to a release. The chart installs the CRDs, a one-replica Deployment, the webhook Service, a ServiceAccount with its RBAC, and optionally an Ingress and a NetworkPolicy. [`deploy/samples`](../deploy/samples/knowledgebase.yaml) is a `KnowledgeBase`, a `Source` and the Secrets they reference.
+
+The chart never creates a Secret and has no credential in its values. Create the Secrets your `KnowledgeBase`s reference, then list them under `secrets` so the controller may read them; the Secret rules below say how.
+
+Helm applies the CRDs only on `helm install`, never on `helm upgrade`. After upgrading to a release that changes the CRDs, apply them yourself:
+
+```bash
+helm show crds oci://ghcr.io/gjed/charts/okf-operator --version 1.2.4 | kubectl apply --server-side -f -
+```
+
+Without Helm, render the chart and apply the output; the CRDs come from `helm show crds` as above:
+
+```bash
+helm template okf-operator oci://ghcr.io/gjed/charts/okf-operator \
+  --version 1.2.3 --namespace okf-operator -f values.yaml | kubectl apply -n okf-operator -f -
+```
+
+The Deployment runs one replica with the `Recreate` strategy, a non-root user, a read-only root filesystem, no capabilities and the `RuntimeDefault` seccomp profile. None of this is a value: a change would break leader election or the hardening.
+
+### Values
+
+| Value                                                       | Default                         | Description                                                                          |
+| ----------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
+| `image.repository`                                          | `ghcr.io/gjed/okf-operator`     | Image                                                                                |
+| `image.tag`                                                 | chart `appVersion`              | Image tag                                                                            |
+| `image.pullPolicy`                                          | `IfNotPresent`                  |                                                                                      |
+| `imagePullSecrets`                                          | `[]`                            | Pull Secrets, by name                                                                |
+| `serviceAccount.create`                                     | `true`                          | Create the ServiceAccount; with `false`, `serviceAccount.name` names an existing one |
+| `serviceAccount.name`                                       | release name                    |                                                                                      |
+| `serviceAccount.annotations`                                | `{}`                            |                                                                                      |
+| `secrets`                                                   | `[]`                            | `{namespace, names}` entries; the controller may `get` exactly these Secrets         |
+| `otlpEndpoint`                                              | empty                           | Sets `OTEL_EXPORTER_OTLP_ENDPOINT`; empty exports nothing                            |
+| `env`                                                       | `[]`                            | Extra environment variables, for example `GITHUB_API_URL`                            |
+| `extraArgs`                                                 | `[]`                            | Arguments after `controller`, see the flags below                                    |
+| `tmpSizeLimit`                                              | `1Gi`                           | Size limit of `/tmp`, where each run's checkout lives                                |
+| `resources`                                                 | 50m CPU, 128Mi to 512Mi         |                                                                                      |
+| `podAnnotations`, `nodeSelector`, `tolerations`, `affinity` | empty                           | Scheduling and metadata                                                              |
+| `service.port`                                              | `80`                            | Port of the webhook Service                                                          |
+| `ingress.enabled`                                           | `false`                         | Expose `/webhook`                                                                    |
+| `ingress.className`, `ingress.annotations`                  | empty                           |                                                                                      |
+| `ingress.host`                                              | empty                           | Required when the Ingress is enabled                                                 |
+| `ingress.tlsSecretName`                                     | empty                           | Existing TLS Secret; empty renders no TLS block                                      |
+| `networkPolicy.enabled`                                     | `false`                         | Create the NetworkPolicy, see below                                                  |
+| `networkPolicy.ingress.from`                                | `[]`                            | Peers that may reach the webhook port; empty allows any source                       |
+| `networkPolicy.egress.dns`                                  | `kube-dns` in `kube-system`     | Peers of the DNS server, port 53                                                     |
+| `networkPolicy.egress.kubeApi`                              | `0.0.0.0/0`, ports 443 and 6443 | CIDRs and ports of the Kubernetes API server                                         |
+| `networkPolicy.egress.https.cidrs`                          | `0.0.0.0/0`                     | CIDRs allowed on TCP 443: the GitHub API and the model endpoint                      |
+| `networkPolicy.egress.extraRules`                           | `[]`                            | Raw egress rules, for example an in-cluster model endpoint or an OTLP collector      |
+
+### NetworkPolicy
+
+A NetworkPolicy cannot match host names, so the GitHub API and the model endpoint can only be limited by address. GitHub publishes the API ranges at `https://api.github.com/meta` and they change, so the chart cannot embed them: the default allows TCP 443 to any address, and the policy holds egress to DNS, the API server and HTTPS until you narrow `networkPolicy.egress.https.cidrs` to GitHub's ranges and your model provider's. Narrow `networkPolicy.egress.kubeApi.cidrs` to the API server's address at the same time, or leave it open. A model endpoint on another port, in the cluster or not, such as the `ollama.models:11434` of the examples below, needs a rule in `networkPolicy.egress.extraRules`. The policy needs a CNI that enforces NetworkPolicy.
 
 | Flag                          | Default | Description                                                           |
 | ----------------------------- | ------- | --------------------------------------------------------------------- |
@@ -65,7 +117,18 @@ Secrets are referenced by name only and hold fixed keys:
 | `model.apiKeySecretRef` | `api-key`               |
 | `webhookSecretRef`      | `secret`                |
 
-The controller reads Secrets with `get` only, uncached, so its Role can list them by `resourceNames`. Repeat `okf-operator-secrets` from [`rbac.yaml`](../deploy/controller/rbac.yaml) in every namespace that holds a `KnowledgeBase`.
+The controller reads Secrets with `get` only, uncached, so its Role can list them by `resourceNames`. List every Secret your `KnowledgeBase`s reference in the `secrets` value, in the namespace of the `KnowledgeBase`; the chart renders one Role and RoleBinding per namespace, and no `list` or `watch`:
+
+```yaml
+secrets:
+  - namespace: team-a        # defaults to the release namespace
+    names:
+      - knowledge-writer-app
+      - knowledge-writer-model
+      - knowledge-webhook
+```
+
+A Secret that is not listed fails the run with `CredentialsFailed`. An entry with no `names` fails the install, because an empty `resourceNames` would grant every Secret in the namespace.
 
 ### Source status
 
@@ -85,7 +148,7 @@ Failure stages: `knowledgebase`, `credentials`, `declined`, `checkout`, `routing
 
 ## Webhooks
 
-Point the writer App's webhook, or a repository webhook on each source repo, at the `okf-operator-webhook` Service's `/webhook` path through your ingress, with the secret in the `webhookSecretRef` Secret and the **Push** and **Pull requests** events.
+Point the writer App's webhook, or a repository webhook on each source repo, at the `<release>-webhook` Service's `/webhook` path through your ingress (`ingress.enabled` renders one), with the secret in the `webhookSecretRef` Secret and the **Push** and **Pull requests** events.
 
 1. Bodies over 5 MiB answer 413.
 1. `X-Hub-Signature-256` is checked with HMAC-SHA256, in constant time, against the webhook secret of every `KnowledgeBase`. A missing header or no match answers 401 and queues nothing. Several knowledge bases may share one secret.
