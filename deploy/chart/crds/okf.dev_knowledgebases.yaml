@@ -1,0 +1,165 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.23.0
+  name: knowledgebases.okf.dev
+spec:
+  group: okf.dev
+  names:
+    kind: KnowledgeBase
+    listKind: KnowledgeBaseList
+    plural: knowledgebases
+    shortNames:
+    - kb
+    singular: knowledgebase
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.repository
+      name: Repository
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: KnowledgeBase is one knowledge repository kept in sync by the
+          controller.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              KnowledgeBaseSpec is a knowledge repository and the credentials that write
+              and review it.
+            properties:
+              repository:
+                description: Repository is the knowledge repo, owner/name.
+                pattern: ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$
+                type: string
+              reviewer:
+                description: Reviewer is the review-only App that approves, and the
+                  reviewer model.
+                properties:
+                  appSecretRef:
+                    description: AppSecretRef names a Secret holding the App's app-id
+                      and private-key.
+                    properties:
+                      name:
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  model:
+                    description: Model is the model this identity uses.
+                    properties:
+                      apiKeySecretRef:
+                        description: APIKeySecretRef names a Secret whose api-key
+                          is the model API key.
+                        properties:
+                          name:
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      baseURL:
+                        description: BaseURL is the API base URL, e.g. http://ollama:11434/v1.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name is the model name.
+                        minLength: 1
+                        type: string
+                    required:
+                    - baseURL
+                    - name
+                    type: object
+                required:
+                - appSecretRef
+                - model
+                type: object
+              webhookSecretRef:
+                description: WebhookSecretRef names a Secret whose secret verifies
+                  GitHub webhooks.
+                properties:
+                  name:
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              writer:
+                description: Writer is the App that plans, writes and proposes, and
+                  the writer model.
+                properties:
+                  appSecretRef:
+                    description: AppSecretRef names a Secret holding the App's app-id
+                      and private-key.
+                    properties:
+                      name:
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  model:
+                    description: Model is the model this identity uses.
+                    properties:
+                      apiKeySecretRef:
+                        description: APIKeySecretRef names a Secret whose api-key
+                          is the model API key.
+                        properties:
+                          name:
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      baseURL:
+                        description: BaseURL is the API base URL, e.g. http://ollama:11434/v1.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name is the model name.
+                        minLength: 1
+                        type: string
+                    required:
+                    - baseURL
+                    - name
+                    type: object
+                required:
+                - appSecretRef
+                - model
+                type: object
+            required:
+            - repository
+            - reviewer
+            - webhookSecretRef
+            - writer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
