@@ -154,6 +154,7 @@ func TestTelemetry(t *testing.T) {
 		"okf.write.to":                  testHead,
 		"okf.write.pages.changed":       int64(1),
 		"okf.write.pages.created":       int64(1),
+		"okf.write.pages.restamped":     int64(0),
 		"okf.write.pages.unchanged":     int64(1),
 		"okf.write.pages.dropped":       int64(1),
 		"okf.write.validation_failures": int64(2),
@@ -187,7 +188,7 @@ func TestTelemetry(t *testing.T) {
 			t.Errorf("okf.write.tokens{%s} = %d, want %d", kind, v, wantN)
 		}
 	}
-	for result, wantN := range map[string]int64{"changed": 1, "created": 1, "unchanged": 1, "dropped": 1} {
+	for result, wantN := range map[string]int64{"changed": 1, "created": 1, "restamped": 0, "unchanged": 1, "dropped": 1} {
 		if v := valueOf(t, c, "okf.write.pages", with(map[string]string{"okf.write.result": result})); v != wantN {
 			t.Errorf("okf.write.pages{%s} = %d, want %d", result, v, wantN)
 		}

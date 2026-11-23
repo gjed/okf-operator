@@ -26,7 +26,7 @@ import (
 )
 
 // Version is the write report JSON contract version.
-const Version = 2
+const Version = 3
 
 // Page results.
 const (
@@ -34,6 +34,9 @@ const (
 	ResultCreated   = "created"
 	ResultUnchanged = "unchanged"
 	ResultDropped   = "dropped"
+	// ResultRestamped is a reconcile page the model left unchanged whose
+	// provenance was refreshed: only its provenance frontmatter keys changed.
+	ResultRestamped = "restamped"
 )
 
 // Drop reasons.
@@ -206,6 +209,7 @@ func Encode(w io.Writer, r *Report) error {
 type job struct {
 	page    plan.Page
 	create  bool
+	restamp bool   // an unchanged page has its provenance refreshed (reconcile plans)
 	current []byte // the page on disk; nil for a create
 	shown   []byte // current without routed_paths, as the prompt holds it
 	src     *sourceData
@@ -226,8 +230,8 @@ func (j *job) reserve() string {
 }
 
 // Run processes every page of p. Files under d.KnowledgeDir change only when
-// Run returns a nil error, and then only the pages reported as changed or
-// created.
+// Run returns a nil error, and then only the pages reported as changed,
+// created or restamped.
 func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 	rep := &Report{
 		Version:     Version,
@@ -251,7 +255,7 @@ func Run(ctx context.Context, p *plan.Plan, d Deps) (*Report, error) {
 	for _, pg := range p.Pages {
 		switch pg.State {
 		case plan.StateUpdate:
-			jobs = append(jobs, &job{page: pg, result: PageResult{Path: pg.Path}})
+			jobs = append(jobs, &job{page: pg, restamp: p.Reconcile != nil, result: PageResult{Path: pg.Path}})
 		case plan.StateCreate:
 			jobs = append(jobs, &job{page: pg, create: true, result: PageResult{Path: pg.Path}})
 		case plan.StateMissing:
@@ -588,6 +592,9 @@ func process(ctx context.Context, j *job, f provenance.Fields, d Deps) (int, err
 			switch {
 			case unchanged:
 				j.result.Result = ResultUnchanged
+				if out, ok := j.restamped(f); ok {
+					j.result.Result, j.output = ResultRestamped, out
+				}
 			case j.create:
 				j.result.Result, j.output = ResultCreated, out
 			default:
@@ -607,6 +614,20 @@ func process(ctx context.Context, j *job, f provenance.Fields, d Deps) (int, err
 			return failures, err
 		}
 	}
+}
+
+// restamped returns the current page with its provenance refreshed to f, and
+// whether to write it: only for a reconcile page, and only when the stamp
+// changes the page. The body and every other frontmatter key are kept.
+func (j *job) restamped(f provenance.Fields) ([]byte, bool) {
+	if !j.restamp {
+		return nil, false
+	}
+	out, err := provenance.Stamp(j.current, f)
+	if err != nil || bytes.Equal(out, j.current) {
+		return nil, false
+	}
+	return out, true
 }
 
 // accept checks one reply. It returns the stamped page, whether it is the
@@ -698,7 +719,7 @@ func writePages(root *os.Root, jobs []*job) error {
 	for _, j := range jobs {
 		var err error
 		switch j.result.Result {
-		case ResultChanged:
+		case ResultChanged, ResultRestamped:
 			err = replaceFile(root, j.page.Path, j.output)
 		case ResultCreated:
 			err = createFile(root, j.page.Path, j.output)
