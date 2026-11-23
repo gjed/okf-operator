@@ -212,7 +212,7 @@ Publishing the gate result as a required check run was rejected: it needs **Chec
 
 Drop reasons: `signature`, `too_large`, `malformed`, `knowledge_repo`, `bot`, `ignored_event`, `no_source`.
 
-`merge_to_pr` is the time from the earliest source PR merge the webhook saw for a `Source` to the run that opened or updated its knowledge PR. `cursor.staleness` is the time since a run last left the cursor at the source HEAD. Both are kept in memory and start over after a restart.
+`merge_to_pr` is the time from the earliest source PR merge the webhook saw for a `Source` to the run that opened or updated its knowledge PR. `cursor.staleness` is the time since a run last left the cursor at the source HEAD. Both are kept in memory and start over after a restart, and both are dropped when the `Source` is deleted, so a deleted `Source` stops reporting staleness. `cursor.staleness` carries the source repo only: two `Source`s on the same repo share one series.
 
 Each run is one `controller run` trace with the source, knowledge repo, mode, outcome, PR and, on failure, the stage. Each stage is a child span named after it, carrying the same attributes as the matching CLI command. Keys, JWTs, installation tokens, webhook secrets and model keys are redacted from logs, events, status and spans.
 
