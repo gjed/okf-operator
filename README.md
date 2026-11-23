@@ -315,7 +315,7 @@ The Helm chart is published with each release, under the same version as the ima
 
 ### Telemetry
 
-Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver.
+Traces and metrics use the standard `OTEL_*` environment variables. With no `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER` or `OTEL_EXPORTER_OTLP_*ENDPOINT` set, nothing is exported and no connection is made. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send telemetry to an OTLP receiver. An exporter named through `OTEL_TRACES_EXPORTER` or `OTEL_METRICS_EXPORTER` is honoured with or without an endpoint: `OTEL_METRICS_EXPORTER=prometheus` serves `/metrics` on port 9464, and `otlp` with no endpoint exports to the SDK default `http://localhost:4318`.
 
 A Grafana dashboard and two Prometheus alert rules for the metrics live in [`dashboards/`](dashboards/README.md), with the name translation they assume and how to import them.
 
