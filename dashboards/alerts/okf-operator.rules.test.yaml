@@ -3,18 +3,19 @@ rule_files:
   - okf-operator.rules.yaml
 evaluation_interval: 1m
 tests:
+  # A stage and mode pair that never failed before: the counter series is
+  # created by the first failure at minute 60, so it starts at 1 and
+  # `increase` does not count that failure. The third failure (minute 180)
+  # makes 2 counted failures.
   - interval: 1m
     input_series:
-      # one failure per hour for 4 hours: 3rd failure crosses the threshold
       - series: 'okf_controller_run_failures_total{okf_controller_stage="write",okf_controller_mode="plan"}'
-        values: '0+0x59 1+0x60 2+0x60 3+0x60 4+0x60'
-      # staleness grows from 0 to 6h, one point per minute
-      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/api"}'
-        values: '0+60x360'
-      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/web"}'
-        values: '1800+0x360'
+        values: '_x59 1x59 2x59 3x59'
     alert_rule_test:
       - eval_time: 30m
+        alertname: OkfOperatorRunFailures
+        exp_alerts: []
+      - eval_time: 2h30m
         alertname: OkfOperatorRunFailures
         exp_alerts: []
       - eval_time: 3h30m
@@ -23,7 +24,35 @@ tests:
           - exp_labels: {severity: warning}
             exp_annotations:
               summary: okf-operator runs are failing
-              description: "3 okf-operator runs failed in the last 3 hours. Check the Source status and the controller logs; the \"Run failures by stage\" panel shows the failing stage."
+              description: "okf-operator runs keep failing: 2 failures counted in the last 3 hours. Check the Source status and the controller logs; the \"Run failures by stage\" panel shows the failing stage."
+
+  # A pair seen before: the series already exists at 0, so the second failure
+  # (minute 120) makes 2 counted failures.
+  - interval: 1m
+    input_series:
+      - series: 'okf_controller_run_failures_total{okf_controller_stage="write",okf_controller_mode="plan"}'
+        values: '0x59 1x59 2x59 3x59'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: OkfOperatorRunFailures
+        exp_alerts: []
+      - eval_time: 2h30m
+        alertname: OkfOperatorRunFailures
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: okf-operator runs are failing
+              description: "okf-operator runs keep failing: 2 failures counted in the last 3 hours. Check the Source status and the controller logs; the \"Run failures by stage\" panel shows the failing stage."
+
+  # Staleness grows from 0 to 6 hours for one source repo and stays at 30
+  # minutes for another.
+  - interval: 1m
+    input_series:
+      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/api"}'
+        values: '0+60x360'
+      - series: 'okf_controller_cursor_staleness_seconds{okf_source_repo="acme/web"}'
+        values: '1800+0x360'
+    alert_rule_test:
       - eval_time: 3h
         alertname: OkfOperatorCursorStale
         exp_alerts: []

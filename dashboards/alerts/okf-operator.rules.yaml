@@ -8,10 +8,13 @@ groups:
   - name: okf-operator
     rules:
       - alert: OkfOperatorRunFailures
-        # tune: more than 2 failed runs (any stage, any Source) in 3 hours.
-        # The default requeue interval is one hour, so one Source that keeps
-        # failing crosses the threshold on its third failure.
-        expr: sum(increase(okf_controller_run_failures_total[3h])) > 2
+        # tune: at least 2 counted failures (any stage, any Source) in 3 hours.
+        # A counter series is created by its first failure, so `increase`
+        # never counts the first failure of a stage and mode pair: a pair that
+        # is new needs 3 failures to reach 2, one seen before needs 2. The
+        # default requeue interval is one hour, so a Source that keeps failing
+        # fires within about two hours.
+        expr: sum(increase(okf_controller_run_failures_total[3h])) >= 2
         # tune
         for: 5m
         labels:
@@ -19,9 +22,10 @@ groups:
         annotations:
           summary: okf-operator runs are failing
           description: >-
-            {{ printf "%.0f" $value }} okf-operator runs failed in the last
-            3 hours. Check the Source status and the controller logs; the
-            "Run failures by stage" panel shows the failing stage.
+            okf-operator runs keep failing: {{ printf "%.0f" $value }}
+            failures counted in the last 3 hours. Check the Source status and
+            the controller logs; the "Run failures by stage" panel shows the
+            failing stage.
 
       - alert: OkfOperatorCursorStale
         # tune: a Source's cursor has been behind the source HEAD for more
