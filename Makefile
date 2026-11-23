@@ -26,10 +26,12 @@ test: ## Run unit tests, controller tests against envtest included
 CONTROLLER_GEN_VERSION := v0.23.0
 
 .PHONY: generate
-generate: ## Regenerate deepcopy code and CRDs from api/
+generate: ## Regenerate deepcopy code and CRDs from api/, chart copy included
 	go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION) \
 		object paths=./api/... \
 		crd paths=./api/... output:crd:artifacts:config=deploy/crds
+	mkdir -p deploy/chart/crds
+	cp deploy/crds/*.yaml deploy/chart/crds/
 
 .PHONY: lint
 lint: ## Run linter
