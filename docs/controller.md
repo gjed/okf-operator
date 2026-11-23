@@ -19,7 +19,7 @@ Helm applies the CRDs only on `helm install`, never on `helm upgrade`. After upg
 helm show crds oci://ghcr.io/gjed/charts/okf-operator --version 1.2.4 | kubectl apply --server-side -f -
 ```
 
-Without Helm, render the chart and apply the output; the CRDs come from `helm show crds` as above:
+Without Helm, create the namespace (`kubectl create namespace okf-operator`), then render the chart and apply the output; the CRDs come from `helm show crds` as above:
 
 ```bash
 helm template okf-operator oci://ghcr.io/gjed/charts/okf-operator \
@@ -128,7 +128,7 @@ secrets:
       - knowledge-webhook
 ```
 
-A Secret that is not listed fails the run with `CredentialsFailed`. An entry with no `names` fails the install, because an empty `resourceNames` would grant every Secret in the namespace.
+A Secret that is not listed fails the run with `CredentialsFailed`. Name each namespace once: two entries for one namespace fail the install. An entry with no `names` fails the install, because an empty `resourceNames` would grant every Secret in the namespace.
 
 ### Source status
 
