@@ -319,6 +319,11 @@ For a version 2 plan, a page whose model reply is `NO_CHANGE`, or the current pa
 - **WHEN** `reconcile` runs again on the checkout after those pages were re-stamped
 - **THEN** it plans neither page and no model call is made for them
 
+#### Scenario: Page that cannot take provenance
+
+- **WHEN** a version 2 plan's page has no closed frontmatter and the model replies `NO_CHANGE`
+- **THEN** the reply counts as an invalid page and the model is asked again, so the page is never left planned on every reconcile
+
 ### Requirement: Version 1 plans do not re-stamp
 
 A version 1 plan SHALL NOT re-stamp: an unchanged page is reported `unchanged` and its file is not modified. For a version 2 plan, a page whose stamped bytes equal the current file SHALL be reported `unchanged` and its file SHALL NOT be modified.

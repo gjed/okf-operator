@@ -264,3 +264,36 @@ func TestRestampTelemetry(t *testing.T) {
 		t.Errorf("counters = %v, want only the three existing ones", c)
 	}
 }
+
+// A reconcile page that cannot take provenance is not re-stamped, and NO_CHANGE
+// is rejected for it, so the model is asked again instead of the page staying
+// planned on every reconcile. A version 1 plan keeps accepting NO_CHANGE.
+func TestRunReconcileNoChangeRejectedWithoutFrontmatter(t *testing.T) {
+	const bare = "# Alpha\n\nNo frontmatter.\n"
+	e := newEnv(t)
+	writeFile(t, e.kb, alphaPath, bare)
+	snap := tree(t, e.kb)
+	e.llm.push(respond("NO_CHANGE"), respond("NO_CHANGE"))
+	rep, err := e.run(reconcilePlan(testPlan(updatePage(alphaPath, "src/a.go")), hunksEntry(alphaPath, testCursor)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pg := rep.Pages[0]; pg.Result != ResultDropped || pg.Reason != ReasonValidationFailed || pg.Attempts != 2 {
+		t.Fatalf("page = %+v, want dropped validation_failed after 2 attempts", pg)
+	}
+	if reqs := e.llm.requests(); len(reqs) != 2 || !strings.Contains(reqs[1].User, "cannot take provenance") {
+		t.Errorf("the retry does not name the error: %+v", reqs)
+	}
+	requireSameTree(t, snap, tree(t, e.kb))
+
+	e = newEnv(t)
+	writeFile(t, e.kb, alphaPath, bare)
+	e.llm.push(respond("NO_CHANGE"))
+	rep, err = e.run(testPlan(updatePage(alphaPath, "src/a.go")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Pages[0].Result != ResultUnchanged {
+		t.Errorf("version 1 page = %+v, want unchanged", rep.Pages[0])
+	}
+}
