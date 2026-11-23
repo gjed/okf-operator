@@ -37,7 +37,7 @@ func TestRunReconcilePerBasePatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Pages[0].Result != ResultUnchanged || rep.Pages[1].Result != ResultUnchanged {
+	if rep.Pages[0].Result != ResultRestamped || rep.Pages[1].Result != ResultRestamped {
 		t.Fatalf("pages = %+v", rep.Pages)
 	}
 	reqs := e.llm.requests()
