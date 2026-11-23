@@ -120,7 +120,7 @@ Each planned page carries a reason (`backfill`, `stale`, `rename` or `widened`) 
 
 ### write
 
-`write` reads a plan, asks an OpenAI-compatible model for the updated content of each planned page, or for a new page from its template when the plan says `create`, stamps provenance and writes the changed and created pages into the knowledge checkout. It prints a JSON report to stdout and never commits or pushes.
+`write` reads a plan, asks an OpenAI-compatible model for the updated content of each planned page, or for a new page from its template when the plan says `create`, stamps provenance and writes the changed and created pages into the knowledge checkout. For a reconcile plan, a page the model leaves unchanged only has its provenance refreshed. It prints a JSON report to stdout and never commits or pushes.
 
 ```bash
 export GITHUB_TOKEN=$(gh auth token)
@@ -144,7 +144,7 @@ The model API key comes from `OKF_MODEL_API_KEY` only. A run over budget exits 1
 
 ### propose
 
-`propose` commits the pages a `write` report marks `changed` or `created` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
+`propose` commits the pages a `write` report marks `changed`, `created` or `restamped` to the bot branch `okf/<owner>/<name>` of the knowledge repo, opens the bot PR or adds the commit to the one already open, and then advances the source cursor on `kb-state`. It uses only the GitHub REST API, no git binary.
 
 Run the stages in this order, because a bot PR that is still open holds earlier page changes, including created pages, that the default branch lacks. `plan` and `write` must see the same checkout: a page created in the open bot PR is an `update` there but a `create` on the default branch, and `write` refuses a create whose file exists.
 
@@ -175,9 +175,9 @@ okf-operator propose --plan plan.json --report report.json \
 | `--knowledge-base sha`               | Full commit SHA the checkout is at (required)                   |
 | `--app-id`, `--app-private-key-file` | GitHub App credentials, see [GitHub access](docs/github-app.md) |
 
-Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed pages and the created pages, which must be new regular files. Any mismatch exits 1 and changes nothing.
+Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed and restamped pages and the created pages, which must be new regular files. Any mismatch exits 1 and changes nothing.
 
-An initial plan only writes the cursor and skips the checkout checks. A report with no changed or created page opens no PR and still advances the cursor. `write` does not link a created page from the bundle `index.md`, and `gate` never auto-merges a PR that adds a page, so the reviewer adds the link. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
+An initial plan only writes the cursor and skips the checkout checks. A report with no changed, created or restamped page opens no PR and still advances the cursor. A restamped page, a reconcile page the model left unchanged whose provenance was refreshed, is committed with the rest and listed apart in the PR body. `write` does not link a created page from the bundle `index.md`, and `gate` never auto-merges a PR that adds a page, so the reviewer adds the link. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
 
 ### gate
 
