@@ -1,0 +1,15 @@
+apiVersion: v2
+name: okf-operator
+description: Keeps an Open Knowledge Format bundle repository in sync with merged pull requests in source repositories.
+type: application
+# Placeholders: the image workflow packages the chart with --version and
+# --app-version set to the release version, and the default image tag follows
+# the app version.
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://github.com/gjed/okf-operator
+sources:
+  - https://github.com/gjed/okf-operator
+keywords:
+  - okf
+  - operator

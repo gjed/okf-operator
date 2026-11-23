@@ -11,10 +11,12 @@ repos:
       # pnpm writes a multi-document lockfile that is generated, not hand-edited.
       - id: check-yaml
         exclude: ^(pnpm-lock\.yaml|deploy/.*\.yaml)$
-      # Kubernetes manifests hold several documents per file.
+      # Kubernetes manifests hold several documents per file. Helm templates
+      # are not YAML until rendered; `helm lint` checks them.
       - id: check-yaml
         name: check yaml (kubernetes manifests)
         files: ^deploy/.*\.yaml$
+        exclude: ^deploy/chart/templates/
         args: [--allow-multiple-documents]
       - id: end-of-file-fixer
       - id: trailing-whitespace
