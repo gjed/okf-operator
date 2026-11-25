@@ -57,6 +57,26 @@ A source with no cursor is never backfilled by `plan`. The first run only anchor
 
 Each advance is one commit on `kb-state`: `okf: advance cursor for <owner>/<name> to <sha>`.
 
+The cursor moves when `propose` pushes, not when the PR merges, so it is ahead of the knowledge repo's default branch for as long as a bot PR is open. It never moves backwards. When the open bot PR falls behind the default branch or conflicts with it, the controller repairs the PR before the run builds on it, and neither repair reads or writes the cursor: see [Repairing a bot PR](#repairing-a-bot-pr).
+
+## Repairing a bot PR
+
+The controller reads the open bot PR's `mergeable_state` at the start of every run. GitHub computes it lazily and answers `unknown` meanwhile, so the read is repeated up to five times with a doubling delay from 500 ms (about 7.5 s); a state still `unknown` is treated like `clean`, and the run carries on as before.
+
+| `mergeable_state` | What the run does                                                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `behind`          | `PUT /repos/{owner}/{repo}/pulls/{n}/update-branch` with `expected_head_sha` set to the head the run read; no model call. The run continues on the new head.         |
+| `dirty`           | The conflicting pages are regenerated on top of the default branch head and pushed as a commit with two parents, the default branch head and the PR head. See below. |
+| anything else     | Nothing: the run checks out the PR head as before.                                                                                                                   |
+
+A 422 from update-branch means the head moved after the run read it, or the branch no longer merges cleanly. The run fails before it writes anything else, and the next run reads the state again.
+
+For a `dirty` PR the run reads the trees of the default branch head, the PR head and their merge base with the git data API, so no git binary is needed. A page conflicts when both the bot branch and the default branch changed it since the merge base and the two versions differ; two identical changes are not a conflict, and two edits to different lines of one page are, because only the model can merge prose. For those pages only, `write` runs over the PR's whole source range, read from the `<!-- okf:range FROM..TO -->` markers of the PR body, in a checkout of the default branch head. A page a human edited on the default branch is regenerated like any other: the human's version is the page the model updates, and the new provenance records the regeneration. The commit keeps the bot branch's version of every page only the bot branch changed and the default branch's version of every page only the default branch changed, and it fast-forwards the bot branch (`force: false`), so the PR keeps its number and review history. A conflicting page that `write` leaves unchanged or drops keeps the default branch's version. The PR body gains a "Conflict repair" note that lists the regenerated pages.
+
+The repair refuses, and the run fails at the `repair` stage with the PR number and the reason, when it cannot know the range: the body records omitted earlier ranges, holds a reconcile section, or its ranges do not chain. It also refuses when a conflicting path is not a page the range routes. Resolve such a PR by hand or close it; closing it records its ranges in `declined/` and the next run starts a new branch.
+
+After a repair the run goes on as usual: it checks out the repaired head, plans from the cursor and, if the source has moved on, `propose` adds the new range on top.
+
 ## Re-anchoring
 
 A diverged cursor, or a source with no cursor that needs a backfill, goes through `reconcile`, `write` and `propose`; see [Reconciling a source](reconcile.md). `reconcile` reads the cursor and writes it into its plan as `from` (empty and `initial: true` when there is none), and `reconcile.cursor` says how it relates to `to`. `propose` then moves the cursor from that `from` to `to` with the same compare-and-swap as above. There is no unconditional cursor write.

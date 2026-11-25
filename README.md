@@ -177,7 +177,7 @@ okf-operator propose --plan plan.json --report report.json \
 
 Before any write, `propose` checks that the plan and report describe the same range, that `--knowledge-base` is the head of the open bot PR or, with none open, of the default branch, and that every file in the checkout matches `--knowledge-base` except the changed and restamped pages and the created pages, which must be new regular files. Any mismatch exits 1 and changes nothing.
 
-An initial plan only writes the cursor and skips the checkout checks. A report with no changed, created or restamped page opens no PR and still advances the cursor. A restamped page, a reconcile page the model left unchanged whose provenance was refreshed, is committed with the rest and listed apart in the PR body. `write` does not link a created page from the bundle `index.md`, and `gate` never auto-merges a PR that adds a page, so the reviewer adds the link. The cursor moves last: if the branch push or the PR call fails, it stays put. stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
+An initial plan only writes the cursor and skips the checkout checks. A report with no changed, created or restamped page opens no PR and still advances the cursor. A restamped page, a reconcile page the model left unchanged whose provenance was refreshed, is committed with the rest and listed apart in the PR body. `write` does not link a created page from the bundle `index.md`, and `gate` never auto-merges a PR that adds a page, so the reviewer adds the link. The cursor moves last: if the branch push or the PR call fails, it stays put. `propose` does not repair a bot PR that is behind the default branch or conflicts with it; the controller does, before it checks out the PR, see [Repairing a bot PR](docs/state.md#repairing-a-bot-pr). stdout gets a JSON result with the action (`opened`, `updated` or `none`), the PR number and URL, the commit and whether the cursor advanced. See [Operator state](docs/state.md) for the cursor rules.
 
 ### gate
 
@@ -205,20 +205,22 @@ GITHUB_TOKEN=$(gh auth token) okf-operator gate \
     {"name": "allowlist", "pass": true, "details": []},
     {"name": "change_shape", "pass": true, "details": []},
     {"name": "size", "pass": false, "details": ["product/services/api.md: 60 changed lines exceed limits.page_lines 50"]},
-    {"name": "links", "pass": true, "details": []}
+    {"name": "links", "pass": true, "details": []},
+    {"name": "mergeable", "pass": true, "details": []}
   ]
 }
 ```
 
-| Rule           | Passes when                                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `provenance`   | Every changed page has all five provenance fields and its `source_sha` is the plan's `to` and exists in the plan's source repo |
-| `routed_set`   | Every changed file is one of the plan's pages                                                                                  |
-| `allowlist`    | The page `type` and the plan's bundle are on the policy's auto-merge allowlist                                                 |
-| `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`                              |
-| `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)                                |
-| `links`        | Every relative or root-relative link in a changed page resolves to an existing file inside the bundle at the PR head           |
-| `review`       | Only with `--review`: the LLM review passed for the same PR head (see [review](#review))                                       |
+| Rule           | Passes when                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `provenance`   | Every changed page has all five provenance fields and its `source_sha` is the plan's `to` and exists in the plan's source repo       |
+| `routed_set`   | Every changed file is one of the plan's pages                                                                                        |
+| `allowlist`    | The page `type` and the plan's bundle are on the policy's auto-merge allowlist                                                       |
+| `change_shape` | Every changed file is modified in place: no added, removed or renamed files, nothing under `.kb/`                                    |
+| `size`         | No page and not the whole PR exceed the policy's changed-line limits (added plus removed lines)                                      |
+| `links`        | Every relative or root-relative link in a changed page resolves to an existing file inside the bundle at the PR head                 |
+| `mergeable`    | The PR's `mergeable_state` is not `dirty`, so it does not conflict with its base branch; `unknown`, while GitHub computes it, passes |
+| `review`       | Only with `--review`: the LLM review passed for the same PR head (see [review](#review))                                             |
 
 `pass` is `true` only when every rule passes. A failed gate still exits 0, so callers branch on `pass`. Exit 1 means the evaluation could not finish (an API failure, a missing or invalid policy, a plan that does not match the base routing map) and prints no report.
 
