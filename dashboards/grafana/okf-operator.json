@@ -1242,6 +1242,76 @@
           "range": true
         }
       ]
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Repairs",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Bot PR repairs by kind",
+      "description": "Open bot PRs the controller repaired (okf.propose.prs.repaired), by kind, per hour: update_branch merges a behind PR's base branch in with no model call, regenerate rebuilds the pages a conflicting PR shares with the default branch. The counter has no bundle attribute, so the Bundle variable does not filter this panel.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 69,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisLabel": "per hour"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (okf_propose_repair) (rate(okf_propose_prs_repaired_total{okf_source_repo=~\"$source\"}[$__rate_interval])) * 3600",
+          "legendFormat": "{{okf_propose_repair}}",
+          "refId": "A",
+          "editorMode": "code",
+          "range": true
+        }
+      ]
     }
   ]
 }

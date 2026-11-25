@@ -79,6 +79,7 @@ Attributes the queries use:
 | `okf_controller_event`                        | `okf_controller_events_received_total`                                                                  |
 | `okf_controller_reason`                       | `okf_controller_events_dropped_total`                                                                   |
 | `okf_controller_trigger`                      | `okf_controller_runs_queued_total`                                                                      |
+| `okf_propose_repair`                          | `okf_propose_prs_repaired_total` (`update_branch` or `regenerate`)                                      |
 | `okf_controller_stage`, `okf_controller_mode` | `okf_controller_run_failures_total`                                                                     |
 
 Scrape the operator directly only for debugging: `OTEL_METRICS_EXPORTER=prometheus` serves `/metrics` on port 9464, with no OTLP endpoint needed. The listener binds to `localhost` by default, so a scrape from outside the pod also needs `OTEL_EXPORTER_PROMETHEUS_HOST=0.0.0.0`.
@@ -113,6 +114,7 @@ The `Source` and `Bundle` variables filter the panels whose metrics carry those 
 | Gate failures by rule                                                | `okf_gate_rule_results_total{okf_gate_outcome="fail"}`                                                       | No source attribute                                                                                                           |
 | Source merge to knowledge PR                                         | `histogram_quantile` over `okf_controller_merge_to_pr_seconds_bucket`                                        | Merge times are in memory; default histogram bounds make the quantiles coarse                                                 |
 | Share of PRs auto-merged                                             | `okf_controller_prs_approved_total` over `okf_propose_prs_opened_total` plus `okf_propose_prs_updated_total` | Approval, not the merge, which the operator does not see; counts each push to a PR as a run; reconcile PRs are never approved |
+| Bot PR repairs by kind                                               | `okf_propose_prs_repaired_total`                                                                             | Counts repairs, not runs: it is not part of the per-run denominator; no bundle attribute, so only `Source` filters it         |
 | Tokens per run                                                       | `okf_write_tokens_total`, `okf_review_tokens_total`, divided by PR-producing runs                            | Tokens of failed runs are in the numerator only                                                                               |
 | Cursor staleness                                                     | `okf_controller_cursor_staleness_seconds`                                                                    | Appears after a run first reaches HEAD; ends when the `Source` is deleted; restarts with the controller                       |
 
