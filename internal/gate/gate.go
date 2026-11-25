@@ -74,6 +74,7 @@ func Evaluate(ctx context.Context, d Deps, repo string, n int, p *plan.Plan) (*R
 		return nil, err
 	}
 	r.Add(res)
+	r.Add(mergeable(pr))
 	if rv := d.Review; rv != nil {
 		if err := matchReview(rv, r); err != nil {
 			return nil, err

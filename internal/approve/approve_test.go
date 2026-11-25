@@ -3,6 +3,7 @@ package approve
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -46,13 +47,20 @@ func rule(name string, pass bool, details ...string) gate.Result {
 // rules is every deterministic rule passing, with links replaced by extra.
 func rules(extra ...gate.Result) []gate.Result {
 	var out []gate.Result
-	for _, name := range deterministicRules[:len(deterministicRules)-1] {
-		out = append(out, rule(name, true))
+	for _, name := range deterministicRules {
+		if name != gate.RuleLinks {
+			out = append(out, rule(name, true))
+		}
 	}
 	if len(extra) == 0 {
 		extra = []gate.Result{rule(gate.RuleLinks, true)}
 	}
 	return append(out, extra...)
+}
+
+// without drops the rules called name.
+func without(rs []gate.Result, name string) []gate.Result {
+	return slices.DeleteFunc(rs, func(r gate.Result) bool { return r.Name == name })
 }
 
 func TestRun(t *testing.T) {
@@ -69,6 +77,8 @@ func TestRun(t *testing.T) {
 		{"gate failed", report(false, rules(rule(gate.RuleLinks, false, "x"), review)...), head, "", false, ReasonGateFailed},
 		{"edited pass", report(true, rules(rule(gate.RuleLinks, true, "broken link"), review)...), head, "", false, ReasonGateFailed},
 		{"deterministic rule removed", report(true, links, review), head, "", false, ReasonReportIncomplete},
+		{"mergeable rule removed", report(true, without(rules(links, review), gate.RuleMergeable)...), head, "", false, ReasonReportIncomplete},
+		{"dirty PR", report(false, rules(links, review, rule(gate.RuleMergeable, false, "pull request conflicts with main"))...), head, "", false, ReasonGateFailed},
 		{"review missing", report(true, rules()...), head, "", false, ReasonReviewMissing},
 		{"rule repeated", report(true, append(rules(links, review), review)...), head, "", false, ReasonReportIncomplete},
 		{"head moved", report(true, rules(links, review)...), "3333333333333333333333333333333333333333", "", false, ReasonHeadMoved},

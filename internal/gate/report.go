@@ -22,6 +22,7 @@ const (
 	RuleChangeShape = "change_shape"
 	RuleSize        = "size"
 	RuleLinks       = "links"
+	RuleMergeable   = "mergeable"
 	// RuleReview is the optional LLM review, after every deterministic rule.
 	RuleReview = "review"
 )

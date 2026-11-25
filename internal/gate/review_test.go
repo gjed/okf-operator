@@ -64,16 +64,16 @@ func TestReviewRule(t *testing.T) {
 				t.Fatal(err)
 			}
 			names := ruleNames(r)
-			if len(names) != 7 || names[6] != RuleReview {
-				t.Fatalf("rules = %v, want review appended after links", names)
+			if len(names) != 8 || names[7] != RuleReview {
+				t.Fatalf("rules = %v, want review appended after mergeable", names)
 			}
-			if r.Pass != tt.wantPass || r.Rules[6].Pass != tt.review7 {
+			if r.Pass != tt.wantPass || r.Rules[7].Pass != tt.review7 {
 				var out bytes.Buffer
 				_ = Encode(&out, r)
-				t.Fatalf("pass = %v, review pass = %v, want %v and %v:\n%s", r.Pass, r.Rules[6].Pass, tt.wantPass, tt.review7, out.String())
+				t.Fatalf("pass = %v, review pass = %v, want %v and %v:\n%s", r.Pass, r.Rules[7].Pass, tt.wantPass, tt.review7, out.String())
 			}
-			if tt.review == failing && strings.Join(r.Rules[6].Details, "|") != failing.Details[0] {
-				t.Errorf("review details = %q", r.Rules[6].Details)
+			if tt.review == failing && strings.Join(r.Rules[7].Details, "|") != failing.Details[0] {
+				t.Errorf("review details = %q", r.Rules[7].Details)
 			}
 		})
 	}

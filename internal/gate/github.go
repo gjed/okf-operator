@@ -19,7 +19,12 @@ type PR struct {
 	HeadSHA string
 	// BaseSHA is the base branch tip, resolved once when the PR is read.
 	BaseSHA string
-	Files   []File
+	// BaseRef is the name of the base branch.
+	BaseRef string
+	// MergeState is the PR's mergeable_state; "unknown" when GitHub had not
+	// computed it by the last read, "" when the API gave none.
+	MergeState string
+	Files      []File
 }
 
 // File is one changed file, as the pull request files API reports it.
@@ -52,6 +57,9 @@ const filesPerPage = 100
 // GitHubReader implements Reader with the GitHub REST API.
 type GitHubReader struct {
 	Clients github.Clients
+	// Poll bounds the reads that wait for GitHub to compute the PR's merge
+	// state; the zero value is github.Poll's default.
+	Poll github.Poll
 }
 
 // PullRequest reads the PR, resolves its base branch tip and lists its files.
@@ -63,12 +71,12 @@ func (g GitHubReader) PullRequest(ctx context.Context, repo string, n int) (*PR,
 	if err != nil {
 		return nil, err
 	}
-	pr, _, err := c.PullRequests.Get(ctx, owner, name, n)
+	pr, err := github.PullMergeState(ctx, c, owner, name, n, g.Poll)
 	if err != nil {
-		return nil, fmt.Errorf("get %s#%d: %w", repo, n, err)
+		return nil, err
 	}
-	out := &PR{Number: n, HeadSHA: pr.GetHead().GetSHA(), Files: []File{}}
-	base := pr.GetBase().GetRef()
+	out := &PR{Number: n, HeadSHA: pr.GetHead().GetSHA(), BaseRef: pr.GetBase().GetRef(), MergeState: pr.GetMergeableState(), Files: []File{}}
+	base := out.BaseRef
 	if out.BaseSHA, _, err = c.Repositories.GetCommitSHA1(ctx, owner, name, base, ""); err != nil {
 		return nil, fmt.Errorf("resolve %s@%s: %w", repo, base, err)
 	}

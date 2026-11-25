@@ -48,6 +48,11 @@
       "details": [
         "product/services/api.md: link \"billing.md\" resolves to product/services/billing.md, which is not a file at the head"
       ]
+    },
+    {
+      "name": "mergeable",
+      "pass": true,
+      "details": []
     }
   ]
 }
