@@ -372,6 +372,19 @@ func (f *Fake) PullRequests(repo string) []PullRequest {
 	return out
 }
 
+// SetMergeStates sets the mergeable_state values successive reads of pull
+// request number n of repo answer, for one added with AddPullRequest or
+// opened through the API.
+func (f *Fake) SetMergeStates(repo string, n int, states ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range f.gitRepo(repo).pulls {
+		if p.Number == n {
+			p.MergeStates = states
+		}
+	}
+}
+
 func (f *Fake) nextPull() int {
 	f.pullSeq++
 	return f.pullSeq

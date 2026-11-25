@@ -341,3 +341,40 @@ func TestRunnerRegatesAnUnchangedHead(t *testing.T) {
 		t.Fatalf("status %+v, gated %v", st, gated())
 	}
 }
+
+// A reconcile PR is never reviewed or approved, repaired or not: the
+// controller keeps no plan for it, so its repaired head is left to a human.
+func TestRunnerNeverReviewsARepairedReconcilePR(t *testing.T) {
+	m := newModel(t, pageReply)
+	fake, _, _, r, _, _ := newRunFixture(t, m, 8*24*time.Hour)
+	ctx := context.Background()
+	if _, err := r.Reconcile(ctx, request("api")); err != nil {
+		t.Fatal(err)
+	}
+	prs := fake.PullRequests("acme/kb")
+	if st := getSource(t, r, "api").Status; st.LastError != "" || st.LastRunMode != v1alpha1.ModeReconcile || len(prs) != 1 {
+		t.Fatalf("status = %+v, pulls %d", st, len(prs))
+	}
+	n, old, writes := prs[0].Number, fake.Ref("acme/kb", "okf/acme/api"), m.calls
+
+	fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	fake.SetMergeStates("acme/kb", n, "behind")
+	requests := len(fake.Requests())
+	if _, err := r.Reconcile(ctx, request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, r, "api").Status; st.LastError != "" || st.LastRunMode != v1alpha1.ModePlan {
+		t.Fatalf("second run: %+v", st)
+	}
+	if got := fake.Ref("acme/kb", "okf/acme/api"); got == old {
+		t.Fatal("the branch was not updated")
+	}
+	if m.calls != writes {
+		t.Errorf("model calls = %d, want %d: a reconcile PR is not reviewed", m.calls, writes)
+	}
+	for _, req := range fake.Requests()[requests:] {
+		if strings.Contains(req, "/files") || (strings.HasPrefix(req, "POST ") && strings.HasSuffix(req, "/reviews")) {
+			t.Errorf("the repaired reconcile PR reached the gate or the review: %s", req)
+		}
+	}
+}

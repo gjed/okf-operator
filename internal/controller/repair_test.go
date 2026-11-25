@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gjed/okf-operator/internal/github"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
+	"github.com/gjed/okf-operator/internal/plan"
 )
 
 const (
@@ -251,5 +253,238 @@ func TestRunnerDismissesAnOldHeadOnTheNextRun(t *testing.T) {
 	}
 	if calls := fake.UpdateBranches(); len(calls) != 1 {
 		t.Errorf("the next run repaired again: %v", calls)
+	}
+}
+
+const (
+	rrExtra   = "product/extra.md"
+	rrKey     = "acme/kb acme/api"
+	rrPolicy  = "version: 1\nauto_merge:\n  types: [concept]\n  bundles: [product]\nlimits:\n  page_lines: 100\n  pr_lines: 150\n"
+	rrRouting = runRouting + "      - page: product/extra.md\n        paths: [\"src/**\"]\n"
+	rrVerdict = `{"verdict":"supported","unsupported":[]}`
+)
+
+// provPage is a page with all five provenance fields, source_sha sha.
+func provPage(sha, text string) string {
+	return "---\ntype: concept\nsource_repo: acme/api\nsource_sha: " + sha + "\nsource_paths: [src/a.go]\nupdated_at: 2026-11-18T10:00:00Z\ngenerated_by: okf-operator/test/m1\n---\n# Page\n\n" + text + "\n"
+}
+
+// rereview is a bot PR that passes the deterministic gate once its head is
+// settled, with the cursor at the source head so a run proposes nothing.
+type rereview struct {
+	fake  *githubtest.Fake
+	model *modelStub
+	r     *SourceReconciler
+	head  string // source head: the range end of the PR
+	n     int
+	old   string // bot branch head before the run
+	// onList runs whenever the run lists the PR's reviews.
+	onList func()
+}
+
+// newRereview builds a bot PR that changed runPagePath and rrExtra, both
+// routed from src/**, in state state. The model answers the first writes
+// calls with a page and every later call with a passing review verdict. The
+// gate then reads the PR in gateState, as the fake serves it once the run has
+// reached its head.
+func newRereview(t *testing.T, state, gateState string, writes int) *rereview {
+	t.Helper()
+	var m *modelStub
+	m = newModel(t, func(r *http.Request) (int, string) {
+		m.mu.Lock()
+		call := m.calls
+		m.mu.Unlock()
+		if call <= writes {
+			return pageReply(r)
+		}
+		b, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{
+			"message": map[string]string{"role": "assistant", "content": rrVerdict}, "finish_reason": "stop",
+		}}})
+		return http.StatusOK, string(b)
+	})
+	fake, head, _, r, _, _ := newRunFixture(t, m, 0)
+	fake.SetFile("acme/kb", "kb-state", "cursors/acme/api", head+"\n")
+	fake.SetCommit("acme/api", head)
+	fake.SetFile("acme/kb", "main", ".kb/routing.yaml", rrRouting)
+	fake.SetFile("acme/kb", "main", ".kb/policy.yaml", rrPolicy)
+	fake.SetFile("acme/kb", "main", rrExtra, provPage(runBase, "Extra, old."))
+	fake.Branch("acme/kb", "main", "okf/acme/api")
+	fake.SetFile("acme/kb", "okf/acme/api", runPagePath, provPage(head, "Edited by the bot."))
+	fake.SetFile("acme/kb", "okf/acme/api", rrExtra, provPage(head, "Extra, new."))
+	body := "Knowledge updates.\n\n<!-- okf:range " + runBase + ".." + head + " -->\n### acme/api\n\nPages:\n\n- changed: `" + runPagePath + "`\n- changed: `" + rrExtra + "`\n"
+	n := fake.AddPullRequest("acme/kb", githubtest.PullRequest{Title: "t", Body: body, Head: "okf/acme/api", Base: "main", State: "open", MergeStates: []string{state}})
+	files := []githubtest.PullFile{
+		{Filename: runPagePath, Status: "modified", Additions: 3, Deletions: 2},
+		{Filename: rrExtra, Status: "modified", Additions: 1, Deletions: 1},
+	}
+	f := &rereview{fake: fake, model: m, r: r, head: head, n: n, old: fake.Ref("acme/kb", "okf/acme/api")}
+	// The run lists the PR's reviews as soon as its head is settled, which is
+	// when the fake can serve the PR at that head.
+	fake.SetHook(func(req *http.Request) {
+		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/pulls/"+strconv.Itoa(n)+"/reviews") {
+			fake.SetRepo("acme/kb", "main", fake.Ref("acme/kb", "main"))
+			fake.SetPull("acme/kb", n, githubtest.Pull{Head: fake.Ref("acme/kb", "okf/acme/api"), BaseRef: "main", MergeStates: []string{gateState}})
+			fake.SetPullFiles("acme/kb", n, files)
+			if f.onList != nil {
+				f.onList()
+			}
+		}
+	})
+	return f
+}
+
+// plan is the plan of the PR's whole range.
+func (f *rereview) plan() *plan.Plan {
+	return &plan.Plan{
+		Version: plan.Version, Source: "acme/api", Bundle: "product", From: runBase, To: f.head,
+		Pages: []plan.Page{
+			{Path: runPagePath, State: plan.StateUpdate, SourcePaths: []string{"src/a.go"}},
+			{Path: rrExtra, State: plan.StateUpdate, SourcePaths: []string{"src/a.go"}},
+		},
+	}
+}
+
+// remember makes the controller remember the plan behind head.
+func (f *rereview) remember(head string) {
+	f.r.Pipeline.(*Runner).gated.put(rrKey, head, f.plan())
+}
+
+func (f *rereview) run(t *testing.T) {
+	t.Helper()
+	if _, err := f.r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, f.r, "api").Status; st.LastError != "" {
+		t.Fatalf("run failed: %+v", st)
+	}
+}
+
+// posted is the reviews the review App posted.
+func (f *rereview) posted() []githubtest.Review { return f.fake.Reviews("acme/kb", f.n) }
+
+// gated is true when the run read the PR's files, as the gate does.
+func (f *rereview) gated() bool {
+	for _, req := range f.fake.Requests() {
+		if strings.HasSuffix(req, "/pulls/"+strconv.Itoa(f.n)+"/files") {
+			return true
+		}
+	}
+	return false
+}
+
+// approvedHead fails unless exactly one review was posted, an approval of the
+// bot branch head.
+func (f *rereview) approvedHead(t *testing.T) {
+	t.Helper()
+	head := f.fake.Ref("acme/kb", "okf/acme/api")
+	if got := f.posted(); len(got) != 1 || got[0].Event != "APPROVE" || got[0].CommitID != head {
+		t.Fatalf("reviews = %+v, want one approval of %s", got, head)
+	}
+}
+
+// After update-branch with no new source commits, the repaired head is
+// reviewed with the plan of the whole range and approved again.
+func TestRunnerReviewsAndApprovesAHeadAfterUpdateBranch(t *testing.T) {
+	f := newRereview(t, "behind", "clean", 0)
+	f.fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	f.remember(f.old)
+	approveOldHead(f.fake, f.n, f.old)
+
+	f.run(t)
+	if got := f.fake.Ref("acme/kb", "okf/acme/api"); got == f.old {
+		t.Fatal("the branch did not move")
+	}
+	if got := reviewStates(f.fake, f.n); got[1] != "DISMISSED" || got[2] != "APPROVED" {
+		t.Errorf("review states = %v, want the old approval dismissed and a human's kept", got)
+	}
+	f.approvedHead(t)
+	// One review of each page of the whole range, and no model call besides.
+	if f.model.calls != 2 || !strings.Contains(f.model.bodies[0], "product/") || !strings.Contains(f.model.bodies[1], "product/") {
+		t.Errorf("model calls = %d, want one review per page", f.model.calls)
+	}
+	if f.model.bodies[0] == f.model.bodies[1] {
+		t.Error("both reviews were of the same page")
+	}
+}
+
+// After a regeneration with no new source commits, the repaired head is
+// reviewed over the whole range, not the regenerated page only, and approved.
+func TestRunnerReviewsAndApprovesAHeadAfterARegeneration(t *testing.T) {
+	f := newRereview(t, "dirty", "clean", 1)
+	f.fake.SetFile("acme/kb", "main", runPagePath, humanPage)
+	f.fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	approveOldHead(f.fake, f.n, f.old)
+
+	f.run(t)
+	if got := f.fake.Ref("acme/kb", "okf/acme/api"); got == f.old || len(f.fake.Parents("acme/kb", got)) != 2 {
+		t.Fatalf("bot branch %s, want the regeneration commit", got)
+	}
+	if got := reviewStates(f.fake, f.n); got[1] != "DISMISSED" || got[2] != "APPROVED" {
+		t.Errorf("review states = %v, want the old approval dismissed and a human's kept", got)
+	}
+	f.approvedHead(t)
+	// One write for the conflicting page, then a review of both pages.
+	if f.model.calls != 3 {
+		t.Fatalf("model calls = %d, want 1 write and 2 reviews", f.model.calls)
+	}
+	reviewed := f.model.bodies[1] + f.model.bodies[2]
+	if !strings.Contains(reviewed, runPagePath) || !strings.Contains(reviewed, rrExtra) {
+		t.Errorf("the review covers %q, want both pages of the range", reviewed)
+	}
+}
+
+// A run with no repair and no new commits only gates the head again.
+func TestRunnerStillOnlyRegatesAnUnrepairedHead(t *testing.T) {
+	f := newRereview(t, "clean", "clean", 0)
+	f.remember(f.old)
+	approveOldHead(f.fake, f.n, f.old)
+
+	f.run(t)
+	if !f.gated() {
+		t.Fatal("the head was not gated again")
+	}
+	if len(f.posted()) != 0 || f.model.calls != 0 {
+		t.Errorf("reviews %+v, model calls %d: want neither", f.posted(), f.model.calls)
+	}
+	if got := reviewStates(f.fake, f.n); got[1] != "APPROVED" {
+		t.Errorf("review states = %v, want the approval of the head kept", got)
+	}
+}
+
+// After a restart the controller no longer holds the plan behind the head, so
+// a repaired head is neither gated, reviewed nor approved.
+func TestRunnerDoesNotReviewARepairedHeadWithoutItsPlan(t *testing.T) {
+	f := newRereview(t, "behind", "clean", 0)
+	f.fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+
+	f.run(t)
+	if got := f.fake.Ref("acme/kb", "okf/acme/api"); got == f.old {
+		t.Fatal("the branch did not move")
+	}
+	if len(f.posted()) != 0 || f.model.calls != 0 || f.gated() {
+		t.Errorf("reviews %+v, model calls %d, gated %v: want nothing", f.posted(), f.model.calls, f.gated())
+	}
+}
+
+// A repaired head that fails the gate has the approval of it dismissed and
+// costs no reviewer tokens.
+func TestRunnerDismissesAndDoesNotReviewARepairedHeadThatFailsTheGate(t *testing.T) {
+	f := newRereview(t, "behind", "dirty", 0)
+	f.fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	f.remember(f.old)
+	approveOldHead(f.fake, f.n, f.old)
+	// The review App's approval of the head the repair leaves the branch at.
+	f.onList = func() {
+		if len(f.fake.ListedReviews("acme/kb", f.n)) == 3 {
+			f.fake.AddReview("acme/kb", f.n, githubtest.StoredReview{ID: 4, State: "APPROVED", CommitID: f.fake.Ref("acme/kb", "okf/acme/api"), User: "okf-writer[bot]"})
+		}
+	}
+
+	f.run(t)
+	if got := reviewStates(f.fake, f.n); got[1] != "DISMISSED" || got[4] != "DISMISSED" || got[2] != "APPROVED" {
+		t.Errorf("review states = %v, want the review App's approvals dismissed and a human's kept", got)
+	}
+	if len(f.posted()) != 0 || f.model.calls != 0 {
+		t.Errorf("reviews %+v, model calls %d: a failing gate must not review", f.posted(), f.model.calls)
 	}
 }
