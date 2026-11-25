@@ -179,9 +179,9 @@ The bot logins come from `GET /app` and are learned on each knowledge base's fir
 1. `plan`, or `reconcile` when `reconcileInterval` has passed since the last reconcile run (or since the `Source` was created).
 1. `write` against the checkout, then `propose` with the checkout commit as the knowledge base.
 1. Only for a `plan` run whose `propose` opened or updated the PR: `gate` without the review. If it passes, read the review App Secret and the reviewer model key, run `review`, `gate` with the review result, and `approve` with the review App.
-1. A run whose `propose` pushed nothing, while the bot PR head is still the one the controller last pushed, runs `gate` without the review on that head again, with the plan remembered from that push. It never reviews or approves again.
+1. A run whose `propose` pushed nothing, while the bot PR head is still the one the controller last pushed, runs `gate` without the review on that head again, with the plan remembered from that push. It does not review or approve, unless this run's repair moved the head: then it runs the full step above on the repaired head, with the plan of the whole range, so the approval the repair dismissed is given again.
 
-The deterministic gate runs first, so a PR that can never auto-merge costs no reviewer tokens. A reconcile PR always goes to a human, and a run whose `propose` pushed nothing does not gate. `review` reads GitHub as the writer App: the review App is installed on the knowledge repo only and is used to approve and dismiss.
+The deterministic gate runs first, so a PR that can never auto-merge costs no reviewer tokens. A reconcile PR always goes to a human, and a run whose `propose` pushed nothing only gates again, apart from the repaired head above. `review` reads GitHub as the writer App: the review App is installed on the knowledge repo only and is used to approve and dismiss.
 
 The pipeline runs in the controller process. A Job per run is the upgrade path when each step needs its own Secrets.
 
@@ -193,7 +193,7 @@ Each run holds an in-memory lock keyed by the lower-cased knowledge repo. A `Sou
 
 Every run that pushes nothing gates the unchanged bot PR head again, so a policy or routing change on the base branch is seen without a new commit. When a gate run on head H fails, the controller dismisses, as the review App, every `APPROVED` review the review App posted on H (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, covered by **Pull requests** write). Branch protection then stops counting an approval of a head whose latest gate failed, which "Dismiss stale pull request approvals" does not do without a new commit.
 
-Every run with an open bot PR also dismisses the review App's approvals of any commit that is not the PR's current head, right after a repair settles the head and before the new head is checked out, with a message that names the commit. A repair that moved the head and then failed is cleared by the next run. The head itself is not reviewed or approved again by that run.
+Every run with an open bot PR also dismisses the review App's approvals of any commit that is not the PR's current head, right after a repair settles the head and before the new head is checked out, with a message that names the commit. A repair that moved the head and then failed is cleared by the next run. A repaired head is reviewed and approved again, see [Repairing a bot PR](state.md#repairing-a-bot-pr).
 
 A PR whose `mergeable_state` is `dirty` fails the `mergeable` gate rule, so the review App never approves a PR that cannot merge, and its approval of a head that has since gone `dirty` is dismissed the same way.
 
