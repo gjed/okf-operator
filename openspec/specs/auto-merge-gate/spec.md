@@ -144,17 +144,17 @@ The `links` rule SHALL pass only when every relative link in every changed page 
 
 ### Requirement: JSON report
 
-`gate` SHALL print one JSON report to stdout with `version` (2), `knowledge_repo`, `pr`, `head_sha`, `base_sha`, `plan_digest`, `pass` and `rules`. Each rule entry SHALL have `name`, `pass` and `details`, a sorted list of strings that is empty when the rule passes. Every rule SHALL be evaluated and reported even when an earlier rule fails, in the fixed order `provenance`, `routed_set`, `allowlist`, `change_shape`, `size`, `links`, followed by `review` when `--review` is set.
+`gate` SHALL print one JSON report to stdout with `version` (2), `knowledge_repo`, `pr`, `head_sha`, `base_sha`, `plan_digest`, `pass` and `rules`. Each rule entry SHALL have `name`, `pass` and `details`, a sorted list of strings that is empty when the rule passes. Every rule SHALL be evaluated and reported even when an earlier rule fails, in the fixed order `provenance`, `routed_set`, `allowlist`, `change_shape`, `size`, `links`, `mergeable`, followed by `review` when `--review` is set.
 
 #### Scenario: One rule fails
 
 - **WHEN** only the size rule fails and `--review` is not set
-- **THEN** the report lists all six rules, only `size` has `pass: false`, and the top-level `pass` is `false`
+- **THEN** the report lists all seven rules, only `size` has `pass: false`, and the top-level `pass` is `false`
 
 #### Scenario: Review appended
 
 - **WHEN** `gate` runs with `--review`
-- **THEN** the report lists seven rules and the last one is `review`
+- **THEN** the report lists eight rules and the last one is `review`
 
 ### Requirement: Report binding
 
@@ -256,3 +256,22 @@ A modified page whose change is only in its provenance keys, as a re-stamp makes
 
 - **WHEN** the same page has a `source_sha` that exists in `source_repo` but is not the plan's `to`
 - **THEN** the `provenance` rule fails
+
+### Requirement: Mergeable rule
+
+The `mergeable` rule SHALL fail when the PR's `mergeable_state` is `dirty`, naming the base branch in its details, and SHALL pass for every other state, including `unknown`. `gate` SHALL read the state with the PR, retrying while GitHub answers `unknown` at most four more times with a doubling delay starting at 500 ms.
+
+#### Scenario: Conflicted PR
+
+- **WHEN** the PR's `mergeable_state` is `dirty`
+- **THEN** the `mergeable` rule fails and the report's `pass` is `false`
+
+#### Scenario: Behind PR
+
+- **WHEN** the PR's `mergeable_state` is `behind`
+- **THEN** the `mergeable` rule passes
+
+#### Scenario: State not computed
+
+- **WHEN** the PR's `mergeable_state` stays `unknown` through every retry
+- **THEN** the `mergeable` rule passes
