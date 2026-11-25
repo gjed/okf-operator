@@ -60,6 +60,7 @@ type Fake struct {
 	pulls         map[string]Pull       // "owner/name#n" -> pull request
 	pullFiles     map[string][]PullFile // "owner/name#n" -> changed files
 	reviews       map[string][]Review   // "owner/name#n" -> posted reviews
+	listed        map[string][]StoredReview
 
 	updateBranches []UpdateBranch
 }
@@ -70,6 +71,55 @@ type Review struct {
 	Body     string `json:"body"`
 	Event    string `json:"event"`
 	Auth     string `json:"-"`
+}
+
+// StoredReview is a review of a pull request as GET .../reviews lists it.
+type StoredReview struct {
+	ID       int64
+	State    string // APPROVED, DISMISSED, ...
+	CommitID string
+	User     string
+}
+
+// AddReview stores a review of pull request n of repo for the list endpoint.
+func (f *Fake) AddReview(repo string, n int, r StoredReview) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	k := repo + "#" + strconv.Itoa(n)
+	f.listed[k] = append(f.listed[k], r)
+}
+
+// ListedReviews returns the reviews stored with AddReview, with their current state.
+func (f *Fake) ListedReviews(repo string, n int) []StoredReview {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]StoredReview(nil), f.listed[repo+"#"+strconv.Itoa(n)]...)
+}
+
+func (f *Fake) listReviews(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	out := []map[string]any{}
+	for _, rv := range f.listed[pullKey(r)] {
+		out = append(out, map[string]any{"id": rv.ID, "state": rv.State, "commit_id": rv.CommitID, "user": map[string]any{"login": rv.User}})
+	}
+	f.mu.Unlock()
+	WriteJSON(w, http.StatusOK, out)
+}
+
+// dismissReview marks a stored review DISMISSED, as PUT .../dismissals does.
+func (f *Fake) dismissReview(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rvs := f.listed[pullKey(r)]
+	for i := range rvs {
+		if rvs[i].ID == id {
+			rvs[i].State = "DISMISSED"
+			WriteJSON(w, http.StatusOK, map[string]any{"id": id, "state": "DISMISSED"})
+			return
+		}
+	}
+	NotFound(w)
 }
 
 // Reviews returns the reviews posted on pull request number n of repo.
@@ -160,6 +210,7 @@ func New(t testing.TB) *Fake {
 		pulls:             map[string]Pull{},
 		pullFiles:         map[string][]PullFile{},
 		reviews:           map[string][]Review{},
+		listed:            map[string][]StoredReview{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/{owner}/{repo}/installation", f.installation)
@@ -186,6 +237,8 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("PUT /repos/{owner}/{repo}/pulls/{n}/update-branch", f.updateBranch)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}/files", f.listPullFiles)
 	mux.HandleFunc("POST /repos/{owner}/{repo}/pulls/{n}/reviews", f.createReview)
+	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}/reviews", f.listReviews)
+	mux.HandleFunc("PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals", f.dismissReview)
 	f.Server = httptest.NewServer(f.record(mux))
 	t.Cleanup(f.Close)
 	return f
