@@ -155,7 +155,7 @@ A Secret that is not listed fails the run with `CredentialsFailed`. Name each na
 
 `lastCursor` is informational: every run reads the cursor from `kb-state`. Every run also records a `RunSucceeded` or `RunFailed` event on the `Source`.
 
-Failure stages: `knowledgebase`, `credentials`, `declined`, `checkout`, `routing`, `plan`, `reconcile`, `write`, `propose`, `gate`, `review`, `approve`, `dismiss`.
+Failure stages: `knowledgebase`, `credentials`, `declined`, `checkout`, `routing`, `repair`, `plan`, `reconcile`, `write`, `propose`, `gate`, `review`, `approve`, `dismiss`.
 
 ## Webhooks
 
@@ -173,7 +173,7 @@ The bot logins come from `GET /app` and are learned on each knowledge base's fir
 
 1. Read the writer App Secret and the writer model key.
 1. Record declined bot PRs, see [Operator state](state.md#declined-ranges).
-1. Find the open bot PR. The checkout commit is its head, else the default branch head.
+1. Find the open bot PR and read its `mergeable_state`. A PR that is `behind` is updated with update-branch and a `dirty` one has its conflicting pages regenerated, see [Repairing a bot PR](state.md#repairing-a-bot-pr). The checkout commit is the PR's head after the repair, else the default branch head.
 1. Download that commit with `GET /repos/{owner}/{repo}/tarball/{sha}` into a temporary directory, removed after the run. The image has no git.
 1. Read `.kb/routing.yaml` from the default branch head, as the README asks CLI users to pass with `--routing`: the bot branch's copy is as old as its PR.
 1. `plan`, or `reconcile` when `reconcileInterval` has passed since the last reconcile run (or since the `Source` was created).
@@ -193,6 +193,8 @@ Each run holds an in-memory lock keyed by the lower-cased knowledge repo. A `Sou
 
 Every run that pushes nothing gates the unchanged bot PR head again, so a policy or routing change on the base branch is seen without a new commit. When a gate run on head H fails, the controller dismisses, as the review App, every `APPROVED` review the review App posted on H (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`, covered by **Pull requests** write). Branch protection then stops counting an approval of a head whose latest gate failed, which "Dismiss stale pull request approvals" does not do without a new commit.
 
+A PR whose `mergeable_state` is `dirty` fails the `mergeable` gate rule, so the review App never approves a PR that cannot merge, and its approval of a head that has since gone `dirty` is dismissed the same way.
+
 The plan behind the head is kept in memory: after a restart, a head is gated again only once a run pushes to it.
 
 Publishing the gate result as a required check run was rejected: it needs **Checks** write on the writer App and a check that branch protection must require, next to the approval the review App already posts.
@@ -209,6 +211,8 @@ Publishing the gate result as a required check run was rejected: it needs **Chec
 | `okf.controller.merge_to_pr`      | histogram | s    |                                                 |
 | `okf.controller.prs.approved`     | counter   |      |                                                 |
 | `okf.controller.cursor.staleness` | gauge     | s    | `okf.source.repo`                               |
+
+`propose` adds `okf.propose.prs.repaired` (counter, `{pr}`) for every repair of an open bot PR, with `okf.source.repo` and `okf.propose.repair`: `update_branch` for a behind PR and `regenerate` for a conflicting one. It is not part of the per-run `okf.propose.prs.opened` and `okf.propose.prs.updated` counts.
 
 Drop reasons: `signature`, `too_large`, `malformed`, `knowledge_repo`, `bot`, `ignored_event`, `no_source`.
 
