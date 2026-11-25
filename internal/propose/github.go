@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -20,6 +21,9 @@ import (
 type GitHubKnowledge struct {
 	Clients github.Clients
 	Repo    string
+	// Poll bounds the reads that wait for GitHub to compute a PR's merge
+	// state or to move a branch; the zero value is github.Poll's default.
+	Poll github.Poll
 }
 
 func (g GitHubKnowledge) client(ctx context.Context) (*gogithub.Client, string, string, error) {
@@ -95,23 +99,40 @@ func (g GitHubKnowledge) Tree(ctx context.Context, commit string) (map[string]En
 
 // Commit implements Knowledge.
 func (g GitHubKnowledge) Commit(ctx context.Context, base string, files map[string]File, message string) (string, error) {
+	return g.CommitMerge(ctx, []string{base}, nil, files, message)
+}
+
+// CommitMerge creates a commit with the given parents whose tree is the tree
+// of parents[0] with reuse and files applied, and returns its SHA. A reuse
+// entry points a path at an existing blob (or submodule commit), a nil entry
+// deletes the path; files hold new content and win over reuse.
+func (g GitHubKnowledge) CommitMerge(ctx context.Context, parents []string, reuse map[string]*Entry, files map[string]File, message string) (string, error) {
 	c, owner, name, err := g.client(ctx)
 	if err != nil {
 		return "", err
 	}
+	base := parents[0]
 	parent, _, err := c.Git.GetCommit(ctx, owner, name, base)
 	if err != nil {
 		return "", fmt.Errorf("read knowledge commit %s: %w", base, err)
 	}
-	paths := slices.Sorted(func(yield func(string) bool) {
-		for p := range files {
-			if !yield(p) {
-				return
-			}
+	var entries []*gogithub.TreeEntry
+	for _, p := range slices.Sorted(maps.Keys(reuse)) {
+		if _, ok := files[p]; ok {
+			continue
 		}
-	})
-	entries := make([]*gogithub.TreeEntry, 0, len(paths))
-	for _, p := range paths {
+		e := reuse[p]
+		if e == nil {
+			entries = append(entries, &gogithub.TreeEntry{Path: new(p)})
+			continue
+		}
+		typ := "blob"
+		if e.Mode == modeSubmodule {
+			typ = "commit"
+		}
+		entries = append(entries, &gogithub.TreeEntry{Path: new(p), Mode: new(e.Mode), Type: new(typ), SHA: new(e.SHA)})
+	}
+	for _, p := range slices.Sorted(maps.Keys(files)) {
 		f := files[p]
 		blob, _, err := c.Git.CreateBlob(ctx, owner, name, gogithub.Blob{
 			Content:  base64.StdEncoding.EncodeToString(f.Content),
@@ -130,10 +151,14 @@ func (g GitHubKnowledge) Commit(ctx context.Context, base string, files map[stri
 	if err != nil {
 		return "", fmt.Errorf("create knowledge tree: %w", err)
 	}
+	commitParents := make([]*gogithub.Commit, 0, len(parents))
+	for _, p := range parents {
+		commitParents = append(commitParents, &gogithub.Commit{SHA: new(p)})
+	}
 	cm, _, err := c.Git.CreateCommit(ctx, owner, name, gogithub.Commit{
 		Message: &message,
 		Tree:    tree,
-		Parents: []*gogithub.Commit{{SHA: &base}},
+		Parents: commitParents,
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("create knowledge commit: %w", err)

@@ -42,6 +42,10 @@ type Fake struct {
 	// TruncateTrees makes tree responses report truncated: true.
 	TruncateTrees bool
 
+	// HoldUpdateBranch makes update-branch answer 202 without moving the
+	// branch, like a background task that never finishes.
+	HoldUpdateBranch bool
+
 	mu            sync.Mutex
 	hook          func(r *http.Request)
 	tokenRequests []TokenRequest
@@ -56,6 +60,8 @@ type Fake struct {
 	pulls         map[string]Pull       // "owner/name#n" -> pull request
 	pullFiles     map[string][]PullFile // "owner/name#n" -> changed files
 	reviews       map[string][]Review   // "owner/name#n" -> posted reviews
+
+	updateBranches []UpdateBranch
 }
 
 // Review is one recorded POST /repos/{repo}/pulls/{n}/reviews.
@@ -80,6 +86,9 @@ type Pull struct {
 	// ChangedFiles is the PR's changed_files count. Zero means the number of
 	// files set with SetPullFiles.
 	ChangedFiles int
+	// MergeStates are the mergeable_state values successive reads of the pull
+	// request answer; the last one repeats. Empty answers no state.
+	MergeStates []string
 }
 
 // PullFile is one entry of GET /repos/{repo}/pulls/{n}/files.
@@ -174,6 +183,7 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("GET /repos/{owner}/{repo}/compare/{basehead}", f.compare)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/commits/{sha}/pulls", f.commitPullRequests)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}", f.pull)
+	mux.HandleFunc("PUT /repos/{owner}/{repo}/pulls/{n}/update-branch", f.updateBranch)
 	mux.HandleFunc("GET /repos/{owner}/{repo}/pulls/{n}/files", f.listPullFiles)
 	mux.HandleFunc("POST /repos/{owner}/{repo}/pulls/{n}/reviews", f.createReview)
 	f.Server = httptest.NewServer(f.record(mux))
@@ -338,11 +348,45 @@ func pullKey(r *http.Request) string {
 	return r.PathValue("owner") + "/" + r.PathValue("repo") + "#" + r.PathValue("n")
 }
 
+// nextState pops the next mergeable_state of a sequence: the last one stays.
+func nextState(states *[]string) string {
+	if len(*states) == 0 {
+		return ""
+	}
+	s := (*states)[0]
+	if len(*states) > 1 {
+		*states = (*states)[1:]
+	}
+	return s
+}
+
+// pull answers GET /pulls/{n} for a pull request set with SetPull or, failing
+// that, one added with AddPullRequest.
 func (f *Fake) pull(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	p, ok := f.pulls[pullKey(r)]
 	files := len(f.pullFiles[pullKey(r)])
+	state := nextState(&p.MergeStates)
+	if ok {
+		f.pulls[pullKey(r)] = p
+	}
+	n, _ := strconv.Atoi(r.PathValue("n"))
+	var added map[string]any
+	if !ok {
+		repo := repoKey(r)
+		g := f.gitRepo(repo)
+		for _, gp := range g.pulls {
+			if gp.Number == n {
+				added = f.pullJSON(repo, g, gp)
+				added["mergeable_state"] = nextState(&gp.MergeStates)
+			}
+		}
+	}
 	f.mu.Unlock()
+	if added != nil {
+		WriteJSON(w, http.StatusOK, added)
+		return
+	}
 	if !ok {
 		NotFound(w)
 		return
@@ -350,12 +394,12 @@ func (f *Fake) pull(w http.ResponseWriter, r *http.Request) {
 	if p.ChangedFiles == 0 {
 		p.ChangedFiles = files
 	}
-	n, _ := strconv.Atoi(r.PathValue("n"))
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"number":        n,
-		"changed_files": p.ChangedFiles,
-		"head":          map[string]any{"sha": p.Head},
-		"base":          map[string]any{"ref": p.BaseRef},
+		"number":          n,
+		"changed_files":   p.ChangedFiles,
+		"head":            map[string]any{"sha": p.Head},
+		"base":            map[string]any{"ref": p.BaseRef},
+		"mergeable_state": state,
 	})
 }
 
@@ -414,6 +458,9 @@ func (f *Fake) createReview(w http.ResponseWriter, r *http.Request) {
 func (f *Fake) compare(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	body, ok := f.compares[r.PathValue("owner")+"/"+r.PathValue("repo")+" "+r.PathValue("basehead")]
+	if !ok {
+		body, ok = f.gitRepo(repoKey(r)).compare(r.PathValue("basehead"))
+	}
 	f.mu.Unlock()
 	if !ok {
 		NotFound(w)

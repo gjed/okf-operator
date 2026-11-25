@@ -11,6 +11,19 @@ import (
 
 const meterName = "github.com/gjed/okf-operator/internal/propose"
 
+// repaired adds a repair of an open bot PR, update-branch or conflict
+// regeneration, to the okf.propose.prs.repaired counter. It is not part of
+// the per-run counters record adds: those count 0 or 1 per run.
+func repaired(ctx context.Context, source, kind string) {
+	c, err := otel.Meter(meterName).Int64Counter("okf.propose.prs.repaired",
+		metric.WithDescription("Bot PRs repaired by update-branch or by regenerating conflicting pages"), metric.WithUnit("{pr}"))
+	if err != nil {
+		otel.Handle(err)
+		return
+	}
+	c.Add(ctx, 1, metric.WithAttributes(attribute.String("okf.source.repo", source), attribute.String("okf.propose.repair", kind)))
+}
+
 // record annotates the dispatcher's `propose` span and adds the run to the
 // okf.propose.* counters. It opens no span of its own. Tokens, page content
 // and PR bodies never become attributes.

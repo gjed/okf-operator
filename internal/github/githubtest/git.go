@@ -40,6 +40,9 @@ type PullRequest struct {
 	Head, Base  string // branch names
 	State       string // open or closed
 	MergedAt    string // RFC 3339 merge time of a merged PR, else empty
+	// MergeStates are the mergeable_state values successive reads of the pull
+	// request answer; the last one repeats. Empty answers no state.
+	MergeStates []string
 }
 
 type gitRepo struct {
@@ -176,6 +179,89 @@ func (g *gitRepo) isAncestor(ancestor, sha string) bool {
 	return false
 }
 
+// resolve returns the commit SHA a branch name or commit SHA stands for.
+func (g *gitRepo) resolve(name string) string {
+	if sha, ok := g.refs["heads/"+name]; ok {
+		return sha
+	}
+	if c := g.objects[name]; c != nil && c.kind == "commit" {
+		return name
+	}
+	return ""
+}
+
+// ancestors lists sha and every commit behind it, nearest first.
+func (g *gitRepo) ancestors(sha string) []string {
+	var out []string
+	seen := map[string]bool{}
+	queue := []string{sha}
+	for len(queue) > 0 {
+		s := queue[0]
+		queue = queue[1:]
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+		if c := g.objects[s]; c != nil {
+			queue = append(queue, c.parents...)
+		}
+	}
+	return out
+}
+
+// mergeBase is the nearest commit that is an ancestor of both a and b.
+func (g *gitRepo) mergeBase(a, b string) string {
+	behindA := map[string]bool{}
+	for _, s := range g.ancestors(a) {
+		behindA[s] = true
+	}
+	for _, s := range g.ancestors(b) {
+		if behindA[s] {
+			return s
+		}
+	}
+	return ""
+}
+
+// commitFilesOf lists the blobs and symlinks of a commit by full path.
+func (g *gitRepo) commitFilesOf(sha string) map[string]entry {
+	files := map[string]entry{}
+	if c := g.objects[sha]; c != nil {
+		g.flatten(c.tree, "", files)
+	}
+	return files
+}
+
+// compare answers a compare request of "base...head" from the stored commits:
+// the merge base and a status, with no files.
+func (g *gitRepo) compare(basehead string) ([]byte, bool) {
+	base, head, ok := strings.Cut(basehead, "...")
+	if !ok {
+		return nil, false
+	}
+	a, b := g.resolve(base), g.resolve(head)
+	if a == "" || b == "" {
+		return nil, false
+	}
+	mb := g.mergeBase(a, b)
+	status := "diverged"
+	switch {
+	case a == b:
+		status = "identical"
+	case mb == a:
+		status = "ahead"
+	case mb == b:
+		status = "behind"
+	}
+	body, _ := json.Marshal(map[string]any{
+		"status":            status,
+		"merge_base_commit": map[string]string{"sha": mb},
+		"files":             []any{},
+	})
+	return body, true
+}
+
 // SetFile stores a file on a branch of a repo by committing it on top of the
 // branch. A branch exists once it has a file.
 func (f *Fake) SetFile(repo, ref, path, content string) {
@@ -185,6 +271,26 @@ func (f *Fake) SetFile(repo, ref, path, content string) {
 	files := g.headFiles(ref)
 	files[path] = entry{mode: modeFile, sha: g.putBlob([]byte(content))}
 	g.commitFiles(ref, files, "set "+path)
+}
+
+// Branch points branch name of repo at the commit branch from points at, so
+// later SetFile calls on name commit on top of it.
+func (f *Fake) Branch(repo, from, name string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	g := f.gitRepo(repo)
+	g.refs["heads/"+name] = g.refs["heads/"+from]
+}
+
+// DeleteFile removes a file from a branch of a repo by committing the
+// removal on top of the branch.
+func (f *Fake) DeleteFile(repo, ref, path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	g := f.gitRepo(repo)
+	files := g.headFiles(ref)
+	delete(files, path)
+	g.commitFiles(ref, files, "delete "+path)
 }
 
 // SetSymlink stores a symlink to target on a branch of a repo, committed on
@@ -604,6 +710,79 @@ func (f *Fake) listPulls(w http.ResponseWriter, r *http.Request) {
 		out = append(out, f.pullJSON(repo, g, p))
 	}
 	WriteJSON(w, http.StatusOK, out)
+}
+
+// UpdateBranch is one recorded PUT /repos/{repo}/pulls/{n}/update-branch.
+type UpdateBranch struct {
+	Number          int
+	ExpectedHeadSHA string
+}
+
+// UpdateBranches returns the update-branch requests, in order.
+func (f *Fake) UpdateBranches() []UpdateBranch {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]UpdateBranch(nil), f.updateBranches...)
+}
+
+// updateBranch merges the base branch into the head branch of a pull request,
+// as GitHub does after a 202: 422 when expected_head_sha is not the head or
+// when both sides changed a file differently. HoldUpdateBranch accepts the
+// request and never moves the branch.
+func (f *Fake) updateBranch(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ExpectedHeadSHA string `json:"expected_head_sha"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	n, _ := strconv.Atoi(r.PathValue("n"))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updateBranches = append(f.updateBranches, UpdateBranch{Number: n, ExpectedHeadSHA: body.ExpectedHeadSHA})
+	g := f.gitRepo(repoKey(r))
+	var pr *PullRequest
+	for _, p := range g.pulls {
+		if p.Number == n {
+			pr = p
+		}
+	}
+	if pr == nil {
+		NotFound(w)
+		return
+	}
+	head, base := g.refs["heads/"+pr.Head], g.refs["heads/"+pr.Base]
+	if body.ExpectedHeadSHA != "" && body.ExpectedHeadSHA != head {
+		unprocessable(w, "expected head sha didn't match current head ref.")
+		return
+	}
+	accepted := map[string]string{"message": "Updating pull request branch."}
+	if f.HoldUpdateBranch || g.isAncestor(base, head) {
+		WriteJSON(w, http.StatusAccepted, accepted)
+		return
+	}
+	mb := g.mergeBase(base, head)
+	files, baseFiles, headFiles, mbFiles := map[string]entry{}, g.commitFilesOf(base), g.commitFilesOf(head), g.commitFilesOf(mb)
+	for p, e := range baseFiles {
+		files[p] = e
+	}
+	for p, e := range headFiles {
+		if e == mbFiles[p] {
+			continue
+		}
+		if b, ok := baseFiles[p]; ok && b != mbFiles[p] && b != e {
+			unprocessable(w, "merge conflict between base and head")
+			return
+		}
+		files[p] = e
+	}
+	for p, e := range mbFiles {
+		if _, ok := headFiles[p]; !ok && baseFiles[p] == e {
+			delete(files, p)
+		}
+	}
+	g.refs["heads/"+pr.Head] = g.putCommit(g.build(files), []string{head, base}, "Merge branch '"+pr.Base+"' into "+pr.Head)
+	WriteJSON(w, http.StatusAccepted, accepted)
 }
 
 func (f *Fake) createPull(w http.ResponseWriter, r *http.Request) {
