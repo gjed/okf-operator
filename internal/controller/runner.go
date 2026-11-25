@@ -213,10 +213,12 @@ func (r *run) pipeline(ctx context.Context) error {
 	// head is where the run builds: base is the open bot PR's head (after an
 	// update-branch), else the default branch head. A conflicting PR is
 	// checked out only once it is repaired, so base is its old head until then.
+	// repaired is true when this run moved the PR's head, by update-branch or
+	// by the regeneration commit.
 	type head struct {
 		defBranch, defHead, base string
 		pull                     *propose.Pull
-		dirty                    bool
+		dirty, repaired          bool
 	}
 	h, err := stage(ctx, r, StageCheckout, func(ctx context.Context) (head, error) {
 		defBranch, defHead, err := knowledge.DefaultBranch(ctx)
@@ -238,6 +240,7 @@ func (r *run) pipeline(ctx context.Context) error {
 			r.logger.InfoContext(ctx, "bot PR merge state", "pr", pull.Number, "state", synced.State)
 			h.base, h.dirty = synced.Head, synced.Dirty
 			if synced.Head != pull.HeadSHA {
+				h.repaired = true
 				r.logger.InfoContext(ctx, "bot PR branch updated", "pr", pull.Number, "from", pull.HeadSHA, "to", synced.Head)
 				// The plan behind the old head still describes the new one,
 				// which only merges the default branch in.
@@ -328,7 +331,7 @@ func (r *run) pipeline(ctx context.Context) error {
 		if p != nil {
 			r.gated.put(key, rep.Head, p)
 		}
-		h.base = rep.Head
+		h.base, h.repaired = rep.Head, true
 	}
 	var p *plan.Plan
 	if r.job.Mode == v1alpha1.ModeReconcile {
@@ -379,10 +382,18 @@ func (r *run) pipeline(ctx context.Context) error {
 	}
 	r.out.Proposed = res.Action == propose.ActionOpened || res.Action == propose.ActionUpdated
 	if !r.out.Proposed {
-		// The head is unchanged: gate it again with the plan behind it, so a
-		// policy change on the base dismisses an approval that no longer holds.
+		// Nothing was pushed: gate the head with the plan behind it, so a
+		// policy change on the base dismisses an approval that no longer
+		// holds. A head this run's repair moved lost the approval of the old
+		// head, so it goes through review and approval again, with the plan
+		// of the whole range.
 		if gp := r.gated.get(key, h.base); gp != nil && r.out.PR != nil {
-			return regate(ctx, &githubPRStages{run: r, pr: r.out.PR.Number, plan: gp, kbRead: kbRead, srcRead: srcRead}, &r.out)
+			s := &githubPRStages{run: r, pr: r.out.PR.Number, plan: gp, kbRead: kbRead, srcRead: srcRead}
+			if h.repaired {
+				r.logger.InfoContext(ctx, "reviewing the repaired bot PR head", "pr", s.pr, "head_sha", h.base)
+				return gateAndApprove(ctx, s, &r.out)
+			}
+			return regate(ctx, s, &r.out)
 		}
 		return nil
 	}
