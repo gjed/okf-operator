@@ -245,14 +245,24 @@ func (r *run) pipeline(ctx context.Context) error {
 					r.gated.put(key, synced.Head, gp)
 				}
 			}
-			if h.dirty {
-				return h, nil
-			}
 		}
-		return h, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, h.base, dir)
+		return h, nil
 	})
 	if err != nil {
 		return err
+	}
+	if !h.dirty {
+		// A moved head, whether this run's update-branch or an earlier run's
+		// repair that failed afterwards, leaves approvals of the old head
+		// behind. They go before anything else can fail.
+		if err := r.dismissSuperseded(ctx, h.pull, h.base); err != nil {
+			return err
+		}
+		if _, err := stage(ctx, r, StageCheckout, func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, h.base, dir)
+		}); err != nil {
+			return err
+		}
 	}
 
 	// The routing map always comes from the default branch: a bot branch's
@@ -298,12 +308,17 @@ func (r *run) pipeline(ctx context.Context) error {
 					return r.regenerate(ctx, rm, differ, writerKey, repairDir, conflicts, from, to)
 				},
 			})
-			if err != nil {
-				return nil, err
-			}
-			return rep, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, rep.Head, dir)
+			return rep, err
 		})
 		if err != nil {
+			return err
+		}
+		if err := r.dismissSuperseded(ctx, h.pull, rep.Head); err != nil {
+			return err
+		}
+		if _, err := stage(ctx, r, StageCheckout, func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, rep.Head, dir)
+		}); err != nil {
 			return err
 		}
 		p := rep.Plan
@@ -379,6 +394,19 @@ func (r *run) pipeline(ctx context.Context) error {
 	return gateAndApprove(ctx, &githubPRStages{run: r, pr: res.PR.Number, plan: p, kbRead: kbRead, srcRead: srcRead}, &r.out)
 }
 
+// dismissSuperseded dismisses the review App's approvals of every commit of
+// the open bot PR but head, its current head. It does nothing without a PR.
+// Every run does it, so an approval left by a run that failed after it moved
+// the head, or by a failed dismissal, is cleared by the next run.
+func (r *run) dismissSuperseded(ctx context.Context, pull *propose.Pull, head string) error {
+	if pull == nil {
+		return nil
+	}
+	n, err := (&githubPRStages{run: r, pr: pull.Number}).DismissExcept(ctx, head, dismissSuperseded)
+	r.out.Dismissed += n
+	return err
+}
+
 // regate runs the deterministic gate on a head the controller gated before
 // and dismisses the review App's approvals of it when the gate now fails. It
 // never reviews or approves again.
@@ -387,7 +415,7 @@ func regate(ctx context.Context, s prStages, out *Outcome) error {
 	if err != nil || rep.Pass {
 		return err
 	}
-	n, err := s.Dismiss(ctx, rep.HeadSHA)
+	n, err := s.Dismiss(ctx, rep.HeadSHA, dismissGateFailed)
 	out.Dismissed += n
 	return err
 }
@@ -450,7 +478,7 @@ type prStages interface {
 	Gate(ctx context.Context, rv *gate.Review) (*gate.Report, error)
 	Review(ctx context.Context) (*gate.Review, error)
 	Approve(ctx context.Context, rep *gate.Report) (bool, error)
-	Dismiss(ctx context.Context, head string) (int, error)
+	Dismiss(ctx context.Context, head, why string) (int, error)
 }
 
 // gateAndApprove runs the deterministic gate, then the review, the gate with
@@ -471,7 +499,7 @@ func gateAndApprove(ctx context.Context, s prStages, out *Outcome) error {
 			return err
 		}
 		if !rep.Pass {
-			n, err := s.Dismiss(ctx, rep.HeadSHA)
+			n, err := s.Dismiss(ctx, rep.HeadSHA, dismissGateFailed)
 			out.Dismissed += n
 			return err
 		}
@@ -572,13 +600,28 @@ func (g *githubPRStages) Approve(ctx context.Context, rep *gate.Report) (bool, e
 	})
 }
 
-func (g *githubPRStages) Dismiss(ctx context.Context, head string) (int, error) {
+// DismissExcept dismisses the review App's approvals of every commit but keep.
+func (g *githubPRStages) DismissExcept(ctx context.Context, keep, why string) (int, error) {
 	return stage(ctx, g.run, StageDismiss, func(ctx context.Context) (int, error) {
 		p, login, err := g.reviewer(ctx)
 		if err != nil {
 			return 0, err
 		}
-		n, err := dismissStale(ctx, p, g.kbRepo, g.pr, head, login)
+		n, err := dismissExcept(ctx, p, g.kbRepo, g.pr, keep, login, why)
+		if n > 0 {
+			g.logger.InfoContext(ctx, "dismissed approvals of superseded heads", "pr", g.pr, "head_sha", keep, "dismissed", n)
+		}
+		return n, err
+	})
+}
+
+func (g *githubPRStages) Dismiss(ctx context.Context, head, why string) (int, error) {
+	return stage(ctx, g.run, StageDismiss, func(ctx context.Context) (int, error) {
+		p, login, err := g.reviewer(ctx)
+		if err != nil {
+			return 0, err
+		}
+		n, err := dismissStale(ctx, p, g.kbRepo, g.pr, head, login, why)
 		if n > 0 {
 			g.logger.InfoContext(ctx, "dismissed stale approvals", "pr", g.pr, "head_sha", head, "dismissed", n)
 		}

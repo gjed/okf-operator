@@ -120,7 +120,7 @@ func TestDismissStaleApprovesOfTheFailedHead(t *testing.T) {
 		{"id":3,"state":"APPROVED","commit_id":"`+other+`","user":{"login":"okf-review[bot]"}},
 		{"id":4,"state":"DISMISSED","commit_id":"`+head+`","user":{"login":"okf-review[bot]"}},
 		{"id":5,"state":"COMMENTED","commit_id":"`+head+`","user":{"login":"okf-review[bot]"}}]`)
-	n, err := dismissStale(context.Background(), tokenClients(t, srv.URL+"/"), "acme/kb", 5, head, "okf-review[bot]")
+	n, err := dismissStale(context.Background(), tokenClients(t, srv.URL+"/"), "acme/kb", 5, head, "okf-review[bot]", dismissGateFailed)
 	if err != nil || n != 1 {
 		t.Fatalf("dismissed %d, %v", n, err)
 	}
@@ -134,6 +134,7 @@ type fakeStages struct {
 	gates []bool // pass of each Gate call
 	calls []string
 	head  string
+	why   string
 }
 
 func (f *fakeStages) Gate(_ context.Context, rv *gate.Review) (*gate.Report, error) {
@@ -153,7 +154,8 @@ func (f *fakeStages) Approve(context.Context, *gate.Report) (bool, error) {
 	return true, nil
 }
 
-func (f *fakeStages) Dismiss(_ context.Context, head string) (int, error) {
+func (f *fakeStages) Dismiss(_ context.Context, head, why string) (int, error) {
+	f.why = why
 	f.calls = append(f.calls, "dismiss "+head)
 	return 1, nil
 }
@@ -182,6 +184,22 @@ func TestGateAndApproveOrder(t *testing.T) {
 				t.Fatalf("calls %v, outcome %+v", s.calls, out)
 			}
 		})
+	}
+}
+
+func TestDismissExceptKeepsTheCurrentHead(t *testing.T) {
+	head, old := strings.Repeat("4", 40), strings.Repeat("5", 40)
+	srv := newReviewsServer(t, `[
+		{"id":1,"state":"APPROVED","commit_id":"`+old+`","user":{"login":"okf-review[bot]"}},
+		{"id":2,"state":"APPROVED","commit_id":"`+head+`","user":{"login":"okf-review[bot]"}},
+		{"id":3,"state":"APPROVED","commit_id":"`+old+`","user":{"login":"maintainer"}},
+		{"id":4,"state":"DISMISSED","commit_id":"`+old+`","user":{"login":"okf-review[bot]"}}]`)
+	n, err := dismissExcept(context.Background(), tokenClients(t, srv.URL+"/"), "acme/kb", 5, head, "okf-review[bot]", dismissSuperseded)
+	if err != nil || n != 1 {
+		t.Fatalf("dismissed %d, %v", n, err)
+	}
+	if len(srv.dismissed) != 1 || srv.dismissed[0] != "1: okf-operator: the bot branch moved off "+old+"." {
+		t.Fatalf("dismissals = %v", srv.dismissed)
 	}
 }
 

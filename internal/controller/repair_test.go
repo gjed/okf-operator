@@ -2,10 +2,14 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/gjed/okf-operator/internal/github"
 	"github.com/gjed/okf-operator/internal/github/githubtest"
 )
 
@@ -32,12 +36,42 @@ func botPRFixture(t *testing.T, body string, states ...string) (*githubtest.Fake
 	return fake, m, r, head, n
 }
 
+// approveOldHead stores the review App's approval of head (ID 1), a human's
+// approval of the same head (ID 2) and the review App's approval of another
+// commit (ID 3).
+func approveOldHead(fake *githubtest.Fake, n int, head string) {
+	// The fake's GET /app answers the slug okf-writer for both Apps.
+	fake.AddReview("acme/kb", n, githubtest.StoredReview{ID: 1, State: "APPROVED", CommitID: head, User: "okf-writer[bot]"})
+	fake.AddReview("acme/kb", n, githubtest.StoredReview{ID: 2, State: "APPROVED", CommitID: head, User: "maintainer"})
+	fake.AddReview("acme/kb", n, githubtest.StoredReview{ID: 3, State: "APPROVED", CommitID: strings.Repeat("9", 40), User: "okf-writer[bot]"})
+}
+
+// states returns each stored review's state by ID.
+func reviewStates(fake *githubtest.Fake, n int) map[int64]string {
+	out := map[int64]string{}
+	for _, rv := range fake.ListedReviews("acme/kb", n) {
+		out[rv.ID] = rv.State
+	}
+	return out
+}
+
 func TestRunnerUpdatesABehindBotPR(t *testing.T) {
 	fake, m, r, head, n := botPRFixture(t, "", "behind")
 	fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
 	old := fake.Ref("acme/kb", "okf/acme/api")
+	approveOldHead(fake, n, old)
+	// The review App's approval of the head the repair leaves the branch at,
+	// stored when the run lists the reviews, must survive.
+	fake.SetHook(func(r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/pulls/"+strconv.Itoa(n)+"/reviews") && len(fake.ListedReviews("acme/kb", n)) == 3 {
+			fake.AddReview("acme/kb", n, githubtest.StoredReview{ID: 4, State: "APPROVED", CommitID: fake.Ref("acme/kb", "okf/acme/api"), User: "okf-writer[bot]"})
+		}
+	})
 	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
 		t.Fatal(err)
+	}
+	if got := reviewStates(fake, n); got[1] != "DISMISSED" || got[2] != "APPROVED" || got[3] != "DISMISSED" || got[4] != "APPROVED" {
+		t.Errorf("review states after update-branch = %v, want the review App's approvals of the old heads dismissed, a human's and the new head's kept", got)
 	}
 	st := getSource(t, r, "api").Status
 	if calls := fake.UpdateBranches(); !slices.Equal(calls, []githubtest.UpdateBranch{{Number: n, ExpectedHeadSHA: old}}) {
@@ -62,9 +96,19 @@ func TestRunnerRegeneratesAConflictingBotPR(t *testing.T) {
 	fake.SetFile("acme/kb", "main", runPagePath, humanPage)
 	fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
 	botHead, defHead := fake.Ref("acme/kb", "okf/acme/api"), fake.Ref("acme/kb", "main")
+	approveOldHead(fake, n, botHead)
 
 	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
 		t.Fatal(err)
+	}
+	if got := reviewStates(fake, n); got[1] != "DISMISSED" || got[2] != "APPROVED" || got[3] != "DISMISSED" {
+		t.Errorf("review states after regeneration = %v, want the review App's approvals of the old heads dismissed and a human's kept", got)
+	}
+	// Dismissing is all the repair does about approvals: nothing is reviewed or approved again.
+	for _, req := range fake.Requests() {
+		if strings.HasPrefix(req, "POST ") && strings.HasSuffix(req, "/reviews") {
+			t.Errorf("the repair posted a review: %s", req)
+		}
 	}
 	// The same PR, one new commit on both parents.
 	got := fake.Ref("acme/kb", "okf/acme/api")
@@ -120,12 +164,92 @@ func TestRunnerRefusedRepairFailsTheRun(t *testing.T) {
 
 // A state GitHub never computes leaves the PR as it is, like a clean one.
 func TestRunnerUnknownMergeStateCarriesOn(t *testing.T) {
-	fake, _, r, _, _ := botPRFixture(t, "", "unknown")
+	fake, _, r, _, n := botPRFixture(t, "", "unknown")
 	botHead := fake.Ref("acme/kb", "okf/acme/api")
+	approveOldHead(fake, n, botHead)
 	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
 		t.Fatal(err)
 	}
+	// Only approvals of commits that are not the head go, repaired or not.
+	if got := reviewStates(fake, n); got[1] != "APPROVED" || got[2] != "APPROVED" || got[3] != "DISMISSED" {
+		t.Errorf("review states of a PR that was not repaired = %v, want only the approval of another commit dismissed", got)
+	}
 	if calls := fake.UpdateBranches(); len(calls) != 0 || fake.Ref("acme/kb", "okf/acme/api") != botHead {
 		t.Fatalf("update calls %v, branch moved to %s", calls, fake.Ref("acme/kb", "okf/acme/api"))
+	}
+}
+
+// failingCheckout fails the checkout of the knowledge repo while fail is set.
+type failingCheckout struct {
+	next Checkout
+	fail *bool
+}
+
+func (c failingCheckout) Checkout(ctx context.Context, clients github.Clients, repo, sha, dir string) error {
+	if *c.fail {
+		return errors.New("checkout unavailable")
+	}
+	return c.next.Checkout(ctx, clients, repo, sha, dir)
+}
+
+// The head moves in the checkout stage, but the dismissal comes before the
+// checkout of the new head, so a checkout that fails afterwards leaves no
+// approval of the old head behind.
+func TestRunnerDismissesBeforeTheCheckoutOfTheMovedHead(t *testing.T) {
+	fake, _, r, _, n := botPRFixture(t, "", "behind")
+	fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	old := fake.Ref("acme/kb", "okf/acme/api")
+	approveOldHead(fake, n, old)
+	fail := true
+	runner := r.Pipeline.(*Runner)
+	runner.Checkout = failingCheckout{runner.Checkout, &fail}
+
+	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, r, "api").Status; !strings.HasPrefix(st.LastError, "checkout: ") {
+		t.Fatalf("status = %+v, want a checkout failure", st)
+	}
+	if fake.Ref("acme/kb", "okf/acme/api") == old {
+		t.Fatal("the branch did not move")
+	}
+	if got := reviewStates(fake, n); got[1] != "DISMISSED" || got[2] != "APPROVED" {
+		t.Errorf("review states = %v, want the approval of the old head dismissed before the checkout failed", got)
+	}
+}
+
+// A dismissal that fails after the head moved is retried by the next run,
+// which finds the new head as the PR head and still clears the old approval.
+func TestRunnerDismissesAnOldHeadOnTheNextRun(t *testing.T) {
+	fake, _, r, _, n := botPRFixture(t, "", "behind", "clean")
+	fake.SetFile("acme/kb", "main", "product/news.md", "---\ntype: concept\n---\n# News\n")
+	old := fake.Ref("acme/kb", "okf/acme/api")
+	approveOldHead(fake, n, old)
+	dismissal := "PUT /repos/acme/kb/pulls/" + strconv.Itoa(n) + "/reviews/1/dismissals"
+	fake.FailStatus[dismissal] = http.StatusInternalServerError
+
+	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, r, "api").Status; !strings.HasPrefix(st.LastError, "dismiss: ") {
+		t.Fatalf("status = %+v, want a dismiss failure", st)
+	}
+	moved := fake.Ref("acme/kb", "okf/acme/api")
+	if moved == old || reviewStates(fake, n)[1] != "APPROVED" {
+		t.Fatalf("head %s (old %s), review states %v: want a moved head and the approval still in place", moved, old, reviewStates(fake, n))
+	}
+
+	delete(fake.FailStatus, dismissal)
+	if _, err := r.Reconcile(context.Background(), request("api")); err != nil {
+		t.Fatal(err)
+	}
+	if st := getSource(t, r, "api").Status; st.LastError != "" {
+		t.Fatalf("second run failed: %+v", st)
+	}
+	if got := reviewStates(fake, n); got[1] != "DISMISSED" || got[2] != "APPROVED" {
+		t.Errorf("review states = %v, want the old approval dismissed by the next run", got)
+	}
+	if calls := fake.UpdateBranches(); len(calls) != 1 {
+		t.Errorf("the next run repaired again: %v", calls)
 	}
 }
