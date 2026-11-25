@@ -75,6 +75,8 @@ For a `dirty` PR the run reads the trees of the default branch head, the PR head
 
 The repair refuses, and the run fails at the `repair` stage with the PR number and the reason, when it cannot know the range: the body records omitted earlier ranges, holds a reconcile section, or its ranges do not chain. It also refuses when a conflicting path is not a page the range routes. Resolve such a PR by hand or close it; closing it records its ranges in `declined/` and the next run starts a new branch.
 
+Every run with an open bot PR also dismisses every approval the review App posted on a commit other than the PR's current head (`PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{id}/dismissals`), with the message "okf-operator: the bot branch moved off `<sha>`." It does so as soon as the head is settled, after update-branch or the regeneration commit and before the checkout of the new head, so a repair that fails afterwards, or a failed dismissal, is cleared by the next run. Approvals by anyone else and the review App's approval of the current head are left alone. Nothing is reviewed or approved again: the repaired head is gated, reviewed and approved only when a later run pushes to it. This does not depend on the knowledge repo's "Dismiss stale pull request approvals" setting, which stays recommended for everything else.
+
 After a repair the run goes on as usual: it checks out the repaired head, plans from the cursor and, if the source has moved on, `propose` adds the new range on top.
 
 ## Re-anchoring
