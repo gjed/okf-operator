@@ -1,6 +1,7 @@
 package propose
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -145,4 +146,34 @@ func split(body string) (string, []string) {
 		sections = append(sections, markerPrefix+s)
 	}
 	return parts[0], sections
+}
+
+// rangeRE matches a section's marker line and its heading, to tell a reconcile
+// section from a source range.
+var rangeRE = regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(markerPrefix) + `([0-9a-f]*)\.\.([0-9a-f]+) -->\n### (reconcile )?`)
+
+// PRRange returns the whole source range a bot PR body records: the start of
+// its first range marker and the end of its last. It fails when the body has
+// no range, when its oldest ranges were omitted (the true start is lost),
+// when a section was written by reconcile (its pages are not tied to its
+// range) or when the ranges do not chain end to start.
+func PRRange(body string) (from, to string, err error) {
+	if strings.Contains(body, omittedTag) {
+		return "", "", errors.New("the body records omitted earlier ranges, so the PR's whole range is unknown")
+	}
+	ms := rangeRE.FindAllStringSubmatch(body, -1)
+	if len(ms) == 0 {
+		return "", "", errors.New("the body records no source range")
+	}
+	for i, m := range ms {
+		switch {
+		case m[3] != "":
+			return "", "", errors.New("the body holds a reconcile section, whose pages a source range cannot select")
+		case m[1] == "":
+			return "", "", errors.New("the body holds a range without a start")
+		case i > 0 && ms[i-1][2] != m[1]:
+			return "", "", fmt.Errorf("the body's ranges do not chain: one ends at %s, the next starts at %s", short(ms[i-1][2]), short(m[1]))
+		}
+	}
+	return ms[0][1], ms[len(ms)-1][2], nil
 }
