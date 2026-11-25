@@ -15,6 +15,7 @@ const (
 	StageCredentials   = "credentials"
 	StageDeclined      = "declined"
 	StageCheckout      = "checkout"
+	StageRepair        = "repair"
 	StageRouting       = "routing"
 	StagePlan          = "plan"
 	StageReconcile     = "reconcile"

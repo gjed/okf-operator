@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +53,10 @@ type Runner struct {
 	// TempDir holds the per-run checkouts; "" is os.TempDir.
 	TempDir string
 	// ModelHTTP is the model clients' HTTP client; nil is the model default.
-	ModelHTTP   *http.Client
+	ModelHTTP *http.Client
+	// MergePoll bounds the reads that wait for GitHub to compute a bot PR's
+	// merge state and to move its branch; the zero value is github.Poll's default.
+	MergePoll   github.Poll
 	ToolVersion string
 	Logger      *slog.Logger
 	Now         func() time.Time
@@ -204,7 +208,16 @@ func (r *run) pipeline(ctx context.Context) error {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	knowledge := propose.GitHubKnowledge{Clients: kbRead, Repo: r.kbRepo}
-	type head struct{ defHead, base string }
+	repairs := propose.GitHubKnowledge{Clients: kbWrite, Repo: r.kbRepo, Poll: r.MergePoll}
+	key := strings.ToLower(r.kbRepo + " " + r.source)
+	// head is where the run builds: base is the open bot PR's head (after an
+	// update-branch), else the default branch head. A conflicting PR is
+	// checked out only once it is repaired, so base is its old head until then.
+	type head struct {
+		defBranch, defHead, base string
+		pull                     *propose.Pull
+		dirty                    bool
+	}
 	h, err := stage(ctx, r, StageCheckout, func(ctx context.Context) (head, error) {
 		defBranch, defHead, err := knowledge.DefaultBranch(ctx)
 		if err != nil {
@@ -215,12 +228,28 @@ func (r *run) pipeline(ctx context.Context) error {
 		if err != nil {
 			return head{}, err
 		}
-		base := defHead
+		h := head{defBranch: defBranch, defHead: defHead, base: defHead, pull: pull}
 		if pull != nil {
-			base = pull.HeadSHA
 			r.out.PR = &v1alpha1.PullRequest{Number: pull.Number, URL: pull.URL}
+			synced, err := propose.SyncPull(ctx, repairs, r.source, pull)
+			if err != nil {
+				return head{}, err
+			}
+			r.logger.InfoContext(ctx, "bot PR merge state", "pr", pull.Number, "state", synced.State)
+			h.base, h.dirty = synced.Head, synced.Dirty
+			if synced.Head != pull.HeadSHA {
+				r.logger.InfoContext(ctx, "bot PR branch updated", "pr", pull.Number, "from", pull.HeadSHA, "to", synced.Head)
+				// The plan behind the old head still describes the new one,
+				// which only merges the default branch in.
+				if gp := r.gated.get(key, pull.HeadSHA); gp != nil {
+					r.gated.put(key, synced.Head, gp)
+				}
+			}
+			if h.dirty {
+				return h, nil
+			}
 		}
-		return head{defHead, base}, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, base, dir)
+		return h, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, h.base, dir)
 	})
 	if err != nil {
 		return err
@@ -248,6 +277,44 @@ func (r *run) pipeline(ctx context.Context) error {
 
 	cur := cursor.Reader{Clients: kbRead, KnowledgeRepo: r.kbRepo}
 	differ := plan.GitHubDiffer{Clients: srcRead}
+	if h.dirty {
+		repairDir := ""
+		defer func() {
+			if repairDir != "" {
+				_ = os.RemoveAll(repairDir)
+			}
+		}()
+		rep, err := stage(ctx, r, StageRepair, func(ctx context.Context) (*propose.Repaired, error) {
+			rep, err := propose.Repair(ctx, propose.RepairInput{
+				Knowledge: repairs, Source: r.source, Pull: h.pull, DefBranch: h.defBranch, DefHead: h.defHead, Logger: r.logger,
+				Regenerate: func(ctx context.Context, conflicts []string, from, to string) (*propose.Regenerated, error) {
+					var err error
+					if repairDir, err = os.MkdirTemp(r.TempDir, "okf-repair-"); err != nil {
+						return nil, err
+					}
+					if err := r.Checkout.Checkout(ctx, kbRead, r.kbRepo, h.defHead, repairDir); err != nil {
+						return nil, err
+					}
+					return r.regenerate(ctx, rm, differ, writerKey, repairDir, conflicts, from, to)
+				},
+			})
+			if err != nil {
+				return nil, err
+			}
+			return rep, r.Checkout.Checkout(ctx, kbRead, r.kbRepo, rep.Head, dir)
+		})
+		if err != nil {
+			return err
+		}
+		p := rep.Plan
+		if p == nil {
+			p = r.gated.get(key, h.pull.HeadSHA)
+		}
+		if p != nil {
+			r.gated.put(key, rep.Head, p)
+		}
+		h.base = rep.Head
+	}
 	var p *plan.Plan
 	if r.job.Mode == v1alpha1.ModeReconcile {
 		p, err = stage(ctx, r, StageReconcile, func(ctx context.Context) (*plan.Plan, error) {
@@ -268,18 +335,7 @@ func (r *run) pipeline(ctx context.Context) error {
 	}
 
 	rep, err := stage(ctx, r, StageWrite, func(ctx context.Context) (*write.Report, error) {
-		return write.Run(ctx, p, write.Deps{
-			Source:           differ,
-			Model:            r.model(kb.Spec.Writer.Model, writerKey),
-			Validator:        write.BaseValidator{},
-			KnowledgeDir:     dir,
-			ModelName:        kb.Spec.Writer.Model.Name,
-			ToolVersion:      r.ToolVersion,
-			MaxPages:         maxPages,
-			MaxTokensPerPage: maxTokensPerPage,
-			Now:              r.Now,
-			Logger:           r.logger,
-		})
+		return write.Run(ctx, p, r.writeDeps(differ, writerKey, dir))
 	})
 	if err != nil {
 		return err
@@ -307,7 +363,6 @@ func (r *run) pipeline(ctx context.Context) error {
 		r.out.PR = &v1alpha1.PullRequest{Number: res.PR.Number, URL: res.PR.URL}
 	}
 	r.out.Proposed = res.Action == propose.ActionOpened || res.Action == propose.ActionUpdated
-	key := strings.ToLower(r.kbRepo + " " + r.source)
 	if !r.out.Proposed {
 		// The head is unchanged: gate it again with the plan behind it, so a
 		// policy change on the base dismisses an approval that no longer holds.
@@ -335,6 +390,55 @@ func regate(ctx context.Context, s prStages, out *Outcome) error {
 	n, err := s.Dismiss(ctx, rep.HeadSHA)
 	out.Dismissed += n
 	return err
+}
+
+// writeDeps are the inputs of write.Run on the checkout in dir.
+func (r *run) writeDeps(differ plan.GitHubDiffer, writerKey, dir string) write.Deps {
+	m := r.job.KnowledgeBase.Spec.Writer.Model
+	return write.Deps{
+		Source:           differ,
+		Model:            r.model(m, writerKey),
+		Validator:        write.BaseValidator{},
+		KnowledgeDir:     dir,
+		ModelName:        m.Name,
+		ToolVersion:      r.ToolVersion,
+		MaxPages:         maxPages,
+		MaxTokensPerPage: maxTokensPerPage,
+		Now:              r.Now,
+		Logger:           r.logger,
+	}
+}
+
+// fixedCursor is a plan.CursorReader that holds one commit, so a plan can be
+// built over a range other than the real cursor's. It never writes.
+type fixedCursor string
+
+func (c fixedCursor) Read(context.Context, string) (string, bool, error) { return string(c), true, nil }
+
+// regenerate runs plan and write over the source range from..to for the
+// conflicting pages only, in the checkout of the default branch head in dir.
+// The routing map is the default branch's, so the plan covers the pages the
+// range routes today. It returns the plan of the whole range as well, which
+// is the plan behind the repaired head.
+func (r *run) regenerate(ctx context.Context, rm *routing.Map, differ plan.GitHubDiffer, writerKey, dir string, conflicts []string, from, to string) (*propose.Regenerated, error) {
+	full, err := plan.Build(ctx, r.source, to, plan.Deps{
+		Routing: rm, Cursor: fixedCursor(from), Differ: differ, Pages: plan.DirPages(dir), Logger: r.logger,
+	})
+	if err != nil {
+		return nil, err
+	}
+	sub := *full
+	sub.Pages = nil
+	for _, pg := range full.Pages {
+		if slices.Contains(conflicts, pg.Path) {
+			sub.Pages = append(sub.Pages, pg)
+		}
+	}
+	rep, err := write.Run(ctx, &sub, r.writeDeps(differ, writerKey, dir))
+	if err != nil {
+		return nil, err
+	}
+	return &propose.Regenerated{Plan: &sub, Full: full, Report: rep, Dir: dir}, nil
 }
 
 func (r *run) model(m v1alpha1.Model, key string) *model.Client {

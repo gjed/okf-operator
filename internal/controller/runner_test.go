@@ -54,17 +54,19 @@ func (f fakeCheckout) Checkout(_ context.Context, _ github.Clients, repo, sha, d
 
 type modelStub struct {
 	*httptest.Server
-	mu    sync.Mutex
-	calls int
+	mu     sync.Mutex
+	calls  int
+	bodies []string
 }
 
 func newModel(t *testing.T, reply func(r *http.Request) (int, string)) *modelStub {
 	t.Helper()
 	m := &modelStub{}
 	m.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.Copy(io.Discard, r.Body)
+		reqBody, _ := io.ReadAll(r.Body)
 		m.mu.Lock()
 		m.calls++
+		m.bodies = append(m.bodies, string(reqBody))
 		m.mu.Unlock()
 		status, body := reply(r)
 		w.Header().Set("Content-Type", "application/json")
@@ -112,7 +114,7 @@ func newRunFixture(t *testing.T, m *modelStub, created time.Duration) (*githubte
 		secret("kb-webhook", map[string]string{v1alpha1.SecretKeyWebhook: webhookSec}),
 	)
 	runLogs := &syncBuffer{}
-	runner := &Runner{Secrets: c, APIURL: fake.APIURL(), Checkout: fakeCheckout{fake}, ToolVersion: "test",
+	runner := &Runner{Secrets: c, APIURL: fake.APIURL(), Checkout: fakeCheckout{fake}, ToolVersion: "test", MergePoll: github.Poll{Reads: 3, Delay: time.Millisecond},
 		Logger: testLogger(runLogs), Now: time.Now, TempDir: t.TempDir()}
 	r, _, logs := newReconciler(c, runner, now)
 	return fake, head, pem, r, logs, runLogs
@@ -310,7 +312,8 @@ func TestRunnerRegatesAnUnchangedHead(t *testing.T) {
 	fake.SetFile("acme/kb", "kb-state", "cursors/acme/api", head+"\n")
 	fake.SetFile("acme/kb", "okf/acme/api", runPagePath, runOldPage+"\nbot edit\n")
 	n := fake.AddPullRequest("acme/kb", githubtest.PullRequest{Head: "okf/acme/api", Base: "main", State: "open"})
-	gatePath := "/repos/acme/kb/pulls/" + strconv.Itoa(n)
+	// The gate lists the PR's files; the merge-state read alone does not.
+	gatePath := "/repos/acme/kb/pulls/" + strconv.Itoa(n) + "/files"
 	gated := func() bool {
 		for _, req := range fake.Requests() {
 			if strings.HasSuffix(req, gatePath) {
