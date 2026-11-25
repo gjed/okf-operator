@@ -34,7 +34,7 @@ const (
 // deterministicRules are the rules every gate report carries. A report
 // without one of them was cut or edited, and is never approved.
 var deterministicRules = []string{
-	gate.RuleProvenance, gate.RuleRoutedSet, gate.RuleAllowlist, gate.RuleChangeShape, gate.RuleSize, gate.RuleLinks,
+	gate.RuleProvenance, gate.RuleRoutedSet, gate.RuleAllowlist, gate.RuleChangeShape, gate.RuleSize, gate.RuleLinks, gate.RuleMergeable,
 }
 
 // Outcome is the JSON document `approve` prints. Field order is the output order.

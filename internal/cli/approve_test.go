@@ -18,7 +18,7 @@ const passingReport = `{"version":2,"knowledge_repo":"acme/kb","pr":7,"head_sha"
 {"name":"provenance","pass":true,"details":[]},{"name":"routed_set","pass":true,"details":[]},
 {"name":"allowlist","pass":true,"details":[]},{"name":"change_shape","pass":true,"details":[]},
 {"name":"size","pass":true,"details":[]},
-{"name":"links","pass":true,"details":[]},{"name":"review","pass":true,"details":[]}]}`
+{"name":"links","pass":true,"details":[]},{"name":"mergeable","pass":true,"details":[]},{"name":"review","pass":true,"details":[]}]}`
 
 // approveFixture starts a GitHub fake with PR 7 of acme/kb at gateHead,
 // writes report to a file and clears every credential variable.
@@ -104,6 +104,7 @@ func TestApproveDeclines(t *testing.T) {
 		{"edited pass", strings.Replace(passingReport, `"links","pass":true,"details":[]`, `"links","pass":false,"details":["x"]`, 1), "gate_failed", gateHead, ""},
 		{"review missing", strings.Replace(passingReport, `,{"name":"review","pass":true,"details":[]}`, ``, 1), "review_missing", gateHead, ""},
 		{"rule removed", strings.Replace(passingReport, `{"name":"size","pass":true,"details":[]},`, ``, 1), "report_incomplete", gateHead, ""},
+		{"mergeable rule removed", strings.Replace(passingReport, `{"name":"mergeable","pass":true,"details":[]},`, ``, 1), "report_incomplete", gateHead, ""},
 		{"head moved", passingReport, "head_moved", gateBase, ""},
 		{"base moved", passingReport, "base_moved", gateHead, "4444444444444444444444444444444444444444"},
 	}

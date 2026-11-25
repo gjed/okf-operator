@@ -52,6 +52,21 @@ func changeShape(files []File) Result {
 	return newResult(RuleChangeShape, details)
 }
 
+// mergeStateDirty is the mergeable_state of a PR whose branch conflicts with
+// its base branch.
+const mergeStateDirty = "dirty"
+
+// mergeable passes unless the PR's branch conflicts with its base. Every
+// other state passes, "unknown" included: GitHub gave no answer, and branch
+// protection still refuses to merge a conflicted branch.
+func mergeable(pr *PR) Result {
+	var details []string
+	if pr.MergeState == mergeStateDirty {
+		details = append(details, fmt.Sprintf("pull request conflicts with %s: its mergeable_state is %s", pr.BaseRef, mergeStateDirty))
+	}
+	return newResult(RuleMergeable, details)
+}
+
 // size passes when no file and not the whole PR exceed the policy's changed
 // line limits. A changed line counts as added plus removed, as the files API
 // reports it.

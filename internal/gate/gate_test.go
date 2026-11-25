@@ -40,7 +40,7 @@ func TestEvaluateReportsEveryRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{RuleProvenance, RuleRoutedSet, RuleAllowlist, RuleChangeShape, RuleSize, RuleLinks}
+	want := []string{RuleProvenance, RuleRoutedSet, RuleAllowlist, RuleChangeShape, RuleSize, RuleLinks, RuleMergeable}
 	if got := ruleNames(r); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("rules = %v, want %v", got, want)
 	}

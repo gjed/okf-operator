@@ -118,7 +118,7 @@ func TestGateFailedGateExits0(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &r); err != nil {
 		t.Fatalf("stdout is not a report: %v\n%s", err, out)
 	}
-	if r.Pass || len(r.Rules) != 6 {
+	if r.Pass || len(r.Rules) != 7 {
 		t.Errorf("report = %s", out)
 	}
 }
@@ -224,7 +224,7 @@ func TestGateWithReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := r.Rules[len(r.Rules)-1]
-	if r.Pass || len(r.Rules) != 7 || last.Name != "review" || last.Pass ||
+	if r.Pass || len(r.Rules) != 8 || last.Name != "review" || last.Pass ||
 		strings.Join(last.Details, "|") != "product/api.md: unsupported: Made up." {
 		t.Fatalf("report = %s", outs[0])
 	}
